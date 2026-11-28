@@ -42,6 +42,8 @@
     // The Plugin value slot's text and icon: the value read last (plugin-value-page.js barText,
     // barGlyph, barDrawing).
     var pluginValuePage = NODE ? require('./plugin-value-page.js') : window.PluginValuePage;
+    // The watch's drawing of a status icon (the Moon phase slot's picture).
+    var pixelIcon = NODE ? require('../weather/pixel-icon.js') : window.PixelIcon;
 
     // The bars in the page's order, each with the view-cycle status source a screen's row
     // seats it by (view-cycle.js barOfSource, read back); the Watch bar is the top strip
@@ -69,8 +71,56 @@
         uv: [3, 7],
         aqi: [42, 58],
         wind: {kph: [12, 30], mph: [7, 19], knots: [6, 16]},
-        gust: {kph: [20, 45], mph: [12, 28], knots: [11, 24]}
+        gust: {kph: [20, 45], mph: [12, 28], knots: [11, 24]},
+        // The sun and moon slots (worked out on the phone, sky-slots.js): the dusk after the
+        // Sunrise/sunset slot's sample sunset (19:14), a day of 12 h 38 min, and a waning gibbous
+        // moon (slot-text.js MOON_NAMES' 5), 89 % lit, three days after the full moon and 26 days
+        // before the next.
+        dusk: [19, 52],
+        dayLength: 12 * 60 + 38,
+        moon: {phase: 5, lit: 0.89, fullInDays: 26}
     };
+
+    // The page's outline of each of the Moon phase slot's pictures (status-slot-icons.js), by its
+    // status icon's name (status-line-catalog.js ICONS), and the same by the icon's id.
+    var MOON_OUTLINES = {MOON_NEW: 'moonNew', MOON_WAX_CRES: 'moonWaxCres', MOON_FIRST_QTR: 'moonFirstQtr',
+        MOON_WAX_GIB: 'moonWaxGib', MOON_FULL: 'moonFull', MOON_WAN_GIB: 'moonWanGib', MOON_LAST_QTR: 'moonLastQtr',
+        MOON_WAN_CRES: 'moonWanCres'};
+    var MOON_OUTLINE_OF = {};
+    Object.keys(MOON_OUTLINES).forEach(function (name) { MOON_OUTLINE_OF[catalog.ICONS[name]] = MOON_OUTLINES[name]; });
+
+    /**
+     * The sample's moon as slot-text.js moonText reads it: the next full moon `fullInDays` days
+     * after today.
+     * @param {Date} now Today.
+     * @returns {{phase: number, lit: number, fullDay: Date}}
+     */
+    function sampleMoon(now) {
+        var m = SAMPLE.moon;
+        return {phase: m.phase, lit: m.lit,
+            fullDay: new Date(now.getFullYear(), now.getMonth(), now.getDate() + m.fullInDays)};
+    }
+
+    /**
+     * The status icon the Moon phase slot draws for the sample (slot-text.js moonIcon), as the
+     * north sees the moon: none in the Text look.
+     * @param {Object} S Settings.
+     * @returns {?number} A catalog ICONS id; null for none.
+     */
+    function moonIconId(S) {
+        var id = slotText.moonIcon(SAMPLE.moon.phase, S, false);
+        return id === catalog.ICONS.MOON_TEXT ? null : id;
+    }
+
+    /**
+     * The page's outline of a Moon phase picture (status-slot-icons.js).
+     * @param {number} id A catalog ICONS id of a phase (slot-text.js MOON_ICONS).
+     * @returns {?string} Its <svg>; null for an id that is no phase's.
+     */
+    function moonOutline(id) {
+        var key = MOON_OUTLINE_OF[id];
+        return key && PConf && PConf.icons && PConf.icons.get ? PConf.icons.get(key) || null : null;
+    }
 
     /**
      * A day-max kind's sample numbers as wire-units' dayMaxShown would pick them for
@@ -230,6 +280,9 @@
             return slotText.withUnit(slotText.formatTemp(SAMPLE.dewF, S),
                 slotText.unitEnabled(S, 'dewSlotUnit') ? slotText.DEGREE : '', cap);
         case 'sun': return slotText.clockText(19, 14, S);
+        case 'twilight': return slotText.clockText(SAMPLE.dusk[0], SAMPLE.dusk[1], S);
+        case 'dayLength': return slotText.dayLengthText(SAMPLE.dayLength);
+        case 'moon': return slotText.moonText(sampleMoon(now), S, cap, now.getTime());
         case 'date': return dateText(S, c.env, now, Boolean(c.fullDate));
         case 'week': return 'W' + slotText.isoWeek(now);
         case 'city': return 'Berlin';
@@ -297,18 +350,21 @@
         // The Plugin value's icon is the one picked for it, in the form the value takes
         // (plugin-value-page.js barGlyph).
         if (code === 'pluginValue') { return pluginValuePage.barGlyph(S, slotKey); }
+        // The Moon phase draws the sample's moon, or the full moon beside its day, by its Look.
+        if (code === 'moon') { return moonOutline(moonIconId(S)); }
         return (PConf && PConf.icons && PConf.icons.get && PConf.icons.get(code)) || null;
     }
 
     // The drawing each slot item's glyph is on the watch (status-pixels.generated.js keys, from
     // scripts/pixel-icons/icons.json). The condition slot's is the sample's, a partly cloudy
-    // afternoon (the city's weather icon too); the rain alert's the condition slot's rain cloud.
-    // The battery, Battery saver's Z's and the sun arrow are drawn in code: none.
+    // afternoon (the city's weather icon too); the rain alert's the condition slot's rain cloud;
+    // Dawn/dusk's the sample's dusk; Day length's the Clear sun. The battery, Battery saver's Z's
+    // and the sun arrow are drawn in code: none. The Moon phase's follows its Look (slotDrawing).
     var SLOT_DRAWINGS = {
         rain: 'RAIN', uv: 'UV', wind: 'WIND', gust: 'GUST', aqi: 'AQI', pollen: 'POLLEN',
         bluetooth: 'BT', quiet: 'QUIET', temp: 'TEMP', dew: 'DEW', countdown: 'COUNTDOWN',
         phoneBattery: 'PHONE_BATTERY', distance: 'DISTANCE', steps: 'STEPS', sleep: 'SLEEP', hr: 'HEART',
-        condition: 'SUN_CLOUD'
+        condition: 'SUN_CLOUD', twilight: 'DUSK', dayLength: 'SUN'
     };
 
     /**
@@ -322,6 +378,7 @@
      */
     function slotDrawing(code, S, slotKey) {
         if (code === 'pluginValue') { return pluginValuePage.barDrawing(S, slotKey); }
+        if (code === 'moon') { return pixelIcon.keyOfIcon(moonIconId(S)); }
         return SLOT_DRAWINGS[code === 'city' ? 'condition' : code] || null;
     }
 
@@ -585,7 +642,8 @@
     if (PConf && PConf.blocks) { PConf.blocks.register('statusBarsPreview', statusBarsPreview); }
     var api = {statusBarsPreview: statusBarsPreview, barPicture: barPicture, sample: sample, arrowDue: arrowDue,
         arrowShown: arrowShown, calendarShown: calendarShown, barCodes: barCodes, barSlots: barSlots,
-        slotIcon: slotIcon, drawsBatteryGlyph: drawsBatteryGlyph, SLOT_DRAWINGS: SLOT_DRAWINGS};
+        slotIcon: slotIcon, drawsBatteryGlyph: drawsBatteryGlyph, SLOT_DRAWINGS: SLOT_DRAWINGS,
+        moonOutline: moonOutline};
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     // The page: the Watchface tab's watch reads the slots too (preview-watch.js).
     if (typeof window !== 'undefined') { window.PreviewStatusBars = api; }

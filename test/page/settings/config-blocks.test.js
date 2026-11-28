@@ -2035,3 +2035,26 @@ test('the list of every condition has a row per condition, read from condition.j
   });
   assert.ok(html.includes('>Clear <span style="opacity:.7;">(night)</span>'), 'the clear night its own row');
 });
+
+// The Moon phase slot's list of every phase reads slot-text.js, the names the bake prints, and
+// draws each phase's picture from the new moon on, as the north sees it.
+test('the list of every phase has a row per phase, its picture, name and short name', () => {
+  const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
+  const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+  const html = PConf.hintResolvers.get('moonPhaseList')({}, {});
+  const rows = html.split('<tr style="border-top').slice(1);
+  assert.equal(rows.length, 8, 'a row each');
+  assert.deepEqual(rows.map((r) => /<td style="[^"]*">([^<]+)<\/td>/.exec(r)[1]),
+    ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter',
+      'Waning crescent']);
+  rows.forEach((r, phase) => {
+    const names = slotText.MOON_NAMES[phase];
+    assert.ok(r.includes('>' + names.full + '</td>'), names.full + ': its name');
+    assert.ok(r.includes('letter-spacing:.02em;">' + names.short + '</td>'), names.full + ': its short name');
+  });
+  ['moonNew', 'moonWaxCres', 'moonFirstQtr', 'moonWaxGib', 'moonFull', 'moonWanGib', 'moonLastQtr', 'moonWanCres']
+    .forEach((id, phase) => {
+      const pictured = ICONS[id].replace('<svg ', '<svg width="24" height="24" aria-hidden="true" ');
+      assert.ok(rows[phase].includes(pictured), id + ': the phase\'s picture, at 24 px');
+    });
+});

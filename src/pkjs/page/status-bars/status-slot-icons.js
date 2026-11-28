@@ -37,6 +37,14 @@
 //   hr           -> HEALTH_HEART.pdc         (the plain heart)
 //   sun          -> status_row.c ARROW_PATH_INFO (the drawn sunrise/sunset arrow, a stem
 //                   and a filled head, pointing down: the samples read a sunset)
+// and the sun and moon slots (sky-slots.js iconOf), which the watch draws from drawings made for
+// them (scripts/pixel-icons/THIRD_PARTY.md):
+//   twilight     -> Lucide's sunset (DUSK: a half sun over the horizon, an arrow down; the
+//                   samples read a dusk; the watch draws DAWN, Lucide's sunrise, before a dawn)
+//   dayLength    -> condition-icons.js' Clear sun (DAY_LENGTH draws the Clear sun's drawing)
+//   moonNew .. moonWanCres -> the Moon phase's eight phases as the north sees them (MOON_NEW ..
+//                   MOON_WAN_CRES), drawn as the watch draws them: the moon's outline with its lit
+//                   part filled, the new moon a dotted ring
 // and the Plugin value's icons in each form the slot draws them in (plugin-value-page.js reads
 // them here: the Icon row's pictures and the Status bars tab's rows), each from the icon the
 // watch's drawings of it started from (scripts/pixel-icons/THIRD_PARTY.md); its Bluetooth on,
@@ -45,7 +53,8 @@
 //   wifi, wifiOff       -> Tabler's wifi and wifi-off (WIFI, WIFI_OFF)
 //   bluetoothOff        -> Tabler's bluetooth-off: the rune above, struck through (BT_OFF)
 //   plug                -> Lucide's plug (PLUG): Lucide (https://lucide.dev), ISC License,
-//                          Copyright (c) 2026 Lucide Icons and Contributors
+//                          Copyright (c) 2026 Lucide Icons and Contributors (and twilight's
+//                          sunset above)
 //   tide                -> drawn after the watch's own drawing (TIDE): a wave curling over,
 //                          a ripple under it
 // The other outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
@@ -80,6 +89,18 @@
     // time).
     var CONDITION = (typeof require !== 'undefined') ? require('../weather/condition-icons.js')
         : window.ConditionIcons;
+
+    // The Moon phase's pictures: the moon's outline, and its lit part filled.
+    var MOON_RIM = '<circle cx="12" cy="12" r="8.5"/>';
+
+    /**
+     * One phase's picture: the moon's outline with the lit part, `d`, filled.
+     * @param {string} d The lit part's path, inside the outline.
+     * @returns {string} Inline SVG markup.
+     */
+    function moonLit(d) {
+        return svg24(OUTLINE, MOON_RIM + '<path d="' + d + '" fill="currentColor" stroke="none"/>');
+    }
 
     var ICONS = {
         // The rain alert's icon: the watch draws the rain cloud of the weather condition
@@ -175,6 +196,21 @@
         // The weather condition slot's sample, a partly cloudy afternoon (the city's weather
         // icon too).
         condition: CONDITION.svg('SUN_CLOUD'),
+        // The sun and moon slots (see the header): the next dusk, the Clear sun, and the moon's
+        // eight phases (preview-status-bars.js MOON_OUTLINES names each one's status icon).
+        twilight: svg24(OUTLINE,
+            '<path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/>'
+            + '<path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m16 6-4 4-4-4"/>'
+            + '<path d="M16 18a4 4 0 0 0-8 0"/>'),
+        dayLength: CONDITION.svg('SUN'),
+        moonNew: svg24(OUTLINE, '<circle cx="12" cy="12" r="8.5" stroke-dasharray="1.6 2.4"/>'),
+        moonWaxCres: moonLit('M12 3.5A8.5 8.5 0 0 1 12 20.5A4.25 8.5 0 0 0 12 3.5Z'),
+        moonFirstQtr: moonLit('M12 3.5A8.5 8.5 0 0 1 12 20.5Z'),
+        moonWaxGib: moonLit('M12 3.5A8.5 8.5 0 0 1 12 20.5A4.25 8.5 0 0 1 12 3.5Z'),
+        moonFull: svg24(OUTLINE, '<circle cx="12" cy="12" r="8.5" fill="currentColor"/>'),
+        moonWanGib: moonLit('M12 3.5A8.5 8.5 0 0 0 12 20.5A4.25 8.5 0 0 0 12 3.5Z'),
+        moonLastQtr: moonLit('M12 3.5A8.5 8.5 0 0 0 12 20.5Z'),
+        moonWanCres: moonLit('M12 3.5A8.5 8.5 0 0 0 12 20.5A4.25 8.5 0 0 1 12 3.5Z'),
         // The Plugin value's icons (see the header), each turning one on before off.
         switchOn: svg24(OUTLINE,
             '<path d="M14 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>'
@@ -247,6 +283,16 @@
         P.icons.register('bluetoothOff', ICONS.bluetoothOff);
         P.icons.register('plug', ICONS.plug);
         P.icons.register('tide', ICONS.tide);
+        P.icons.register('twilight', ICONS.twilight);
+        P.icons.register('dayLength', ICONS.dayLength);
+        P.icons.register('moonNew', ICONS.moonNew);
+        P.icons.register('moonWaxCres', ICONS.moonWaxCres);
+        P.icons.register('moonFirstQtr', ICONS.moonFirstQtr);
+        P.icons.register('moonWaxGib', ICONS.moonWaxGib);
+        P.icons.register('moonFull', ICONS.moonFull);
+        P.icons.register('moonWanGib', ICONS.moonWanGib);
+        P.icons.register('moonLastQtr', ICONS.moonLastQtr);
+        P.icons.register('moonWanCres', ICONS.moonWanCres);
     }
 
     if (typeof module !== 'undefined' && module.exports) {

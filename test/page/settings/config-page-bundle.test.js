@@ -758,7 +758,8 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
   const src = page();
   const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'moon',
     'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'condition',
-    'switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
+    'switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide', 'twilight', 'dayLength',
+    'moonNew', 'moonWaxCres', 'moonFirstQtr', 'moonWaxGib', 'moonFull', 'moonWanGib', 'moonLastQtr', 'moonWanCres'];
   IDS.forEach((id) => {
     assert.ok(src.indexOf("icons.register('" + id + "'") !== -1,
       'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');
@@ -916,7 +917,8 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
 
 // plugin-value-page.js binds PluginValues, StatusLineCatalog and PixelIcon while its body runs
 // (PixelIcon binds StatusPixels and StatusLineCatalog while its own does), and
-// preview-status-bars.js binds window.PluginValuePage while its own does: out of order, or
+// preview-status-bars.js binds window.PluginValuePage and PixelIcon while its own does, and
+// blocks.js binds window.PreviewStatusBars (the Moon phase's list of every phase): out of order, or
 // missing, the Status bars tab throws on a real phone while every Node test passes through
 // require(). The phone's own parts stay off the page, whose URL every byte rides.
 test('the Plugin value slot\'s rules and dialog reach the page ahead of the Status bars preview', () => {
@@ -930,6 +932,9 @@ test('the Plugin value slot\'s rules and dialog reach the page ahead of the Stat
   // blocks.js binds window.PluginValues as it loads too: the Edit button's badge reads the Look.
   assert.ok(idx('status-bars/domain/plugin-values.js') < idx('page/settings/blocks.js'),
     'plugin-values.js must precede blocks.js');
+  assert.ok(idx('page/status-bars/preview-status-bars.js') < idx('page/settings/blocks.js'),
+    'preview-status-bars.js must precede blocks.js');
+  assert.ok(page().indexOf(code('window.PreviewStatusBars = api')) !== -1, 'the page carries the preview\'s api');
   [code('window.PluginValues = api'), code('window.PluginValuePage = api'), "register('pluginValuePlugins'",
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",
     "register('pluginValueLast'", "register('pluginValuePluginPicked'", "register('pluginValueIcons'",

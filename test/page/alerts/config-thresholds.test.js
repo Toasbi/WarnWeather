@@ -1649,8 +1649,9 @@ test('Bold is the last row before any Goals or Alert highlighting group on every
     const rows = rowsOf(s);
     const group = rows.findIndex(it => it.type === 'subheader');
     if (group !== -1) {
-      assert.ok(['Goals', 'Alert highlighting', 'Every condition'].includes(rows[group].text),
-        s.title + ': the only group a slot sheet opens is its Goals, Alert highlighting or Every condition card');
+      assert.ok(['Goals', 'Alert highlighting', 'Every condition', 'Every phase'].includes(rows[group].text),
+        s.title + ': the only group a slot sheet opens is its Goals, Alert highlighting, Every condition or Every '
+          + 'phase card');
     }
     const end = group === -1 ? rows.length : group;
     const last = rows[end - 1];
@@ -1879,7 +1880,7 @@ test('the goal kinds get no alert sheet', () => {
 test('every bold-only kind gets a sheet whose Bold row is its LAST control', () => {
   const titles = {
     Temp: 'Temperature slot', Pressure: 'Air pressure (hPa) slot',
-    Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
+    Sun: 'Sun slot', Date: 'Date slot', Week: 'Calendar week slot',
     City: 'City slot', Countdown: 'Date countdown slot', Hr: 'Heart rate slot',
     BatteryPct: 'Watch battery slot'
   };
@@ -1902,9 +1903,16 @@ test('every bold-only kind gets a sheet whose Bold row is its LAST control', () 
     assert.equal(bold.label, 'Bold');
     assert.equal(bold.joinPrevious, undefined, stem + ' Bold is a row of its own');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
-    assert.deepEqual(bold.hintByValue, { always: 'Every status slot that shows this value prints it in bold.' },
-      stem + ' hint: Always only (Off, the default, needs none)');
-    assert.equal(bold.hint, undefined, stem + ' no all-options hint');
+    if (stem === 'Sun') {
+      // The sun and moon slots share it (the Moon phase's dialog has its copy), which it says
+      // whatever its value.
+      assert.equal(bold.hintByValue, undefined, 'Sun: no hint by value');
+      assert.equal(bold.hint, 'Applies to every sun and moon slot.', 'Sun: one hint for both values');
+    } else {
+      assert.deepEqual(bold.hintByValue, { always: 'Every status slot that shows this value prints it in bold.' },
+        stem + ' hint: Always only (Off, the default, needs none)');
+      assert.equal(bold.hint, undefined, stem + ' no all-options hint');
+    }
     assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', in: ['off', 'all'] },
       stem + ' row mutes only under the master Bold values row');
   });
@@ -2174,11 +2182,13 @@ test('the slot pencil resolves the bold-only sheet for every new kind', () => {
     { messageKey: 'statusLine1Left' }), null, 'the env gate still applies');
 });
 
-test('the slot pencil of Dawn/dusk, Day length and the Moon phase opens the Sun\'s, whose Bold they share', () => {
+test('the slot pencil of Dawn/dusk and Day length opens the Sun\'s, whose Bold they share; the Moon phase its own', () => {
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
-  ['sun', 'twilight', 'dayLength', 'moon'].forEach((code) => {
+  ['sun', 'twilight', 'dayLength'].forEach((code) => {
     assert.equal(resolve({ statusLine1Left: code }, ENV, { messageKey: 'statusLine1Left' }), 'threshSun', code);
   });
+  assert.equal(resolve({ statusLine1Left: 'moon' }, ENV, { messageKey: 'statusLine1Left' }), 'threshMoon',
+    'the Moon phase: its Look, Shows and Name, and the Sun\'s Bold');
   assert.equal(resolve({ statusLine1Left: 'moon' }, { thresholds: false },
     { messageKey: 'statusLine1Left' }), null, 'no dialogs where the watch has none (aplite)');
 });

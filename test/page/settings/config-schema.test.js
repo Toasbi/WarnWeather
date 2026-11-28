@@ -24,6 +24,8 @@ const LINE_SHEETS = ['lineMain', 'lineSecond', 'lineThird', 'lineFourth'];
 const graphsTab = (s) => (s || schema).tabs.find((t) => t.id === 'graphs');
 const { graphDialog, dialogCards, dialogCard } = require('../../helpers/graph-dialog.js');
 const lineSheetById = (id, s) => graphsTab(s).sections.find((sec) => sec.sheetId === id);
+// A dialog by its sheet id, in whichever tab holds it.
+const sectionBySheet = (id) => schema.tabs.reduce((found, t) => found || t.sections.find((sec) => sec.sheetId === id), null);
 function forecastItems(s) { return LINE_SHEETS.reduce((acc, id) => acc.concat(lineSheetById(id, s).items), []); }
 
 // Threshold highlighting adds six keys per kind (7 kinds: the toggle, the pair, the
@@ -100,6 +102,8 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   // The weather condition slot's Look (Icon + text / Text / Icon).
   'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
+  // The Moon phase slot's Look, what its text shows and the phase's name.
+  'moonSlotLook', 'moonSlotShows', 'moonSlotName',
   // The reading picks (the Weather dialog's Other sources): a provider of its own for each
   // reading; phone-side only.
   'weatherSourceCurrentTemp', 'weatherSourceCurrentFeels', 'weatherSourceCondition', 'weatherSourceTemperature',
@@ -182,11 +186,12 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // threshPhoneBatteryBoldMode: the phone battery's Bold, the item's one setting, in each
   // slot's Phone battery dialog (one per slot, as its Look is the slot's own).
   // threshPluginValueBoldMode: the Plugin value's Bold the same way, in each slot's Plugin
-  // value dialog.
+  // value dialog. threshSunBoldMode: the sun and moon slots' one Bold, in the Sun slot's and
+  // the Moon phase slot's dialogs.
   assert.deepEqual(dups.sort(),
     ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
       'precipLineFrom', 'pressureScale', 'theme', 'themeAutoMode', 'themeNight',
-      'threshPhoneBatteryBoldMode', 'threshPluginValueBoldMode',
+      'threshPhoneBatteryBoldMode', 'threshPluginValueBoldMode', 'threshSunBoldMode',
       'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
       'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
@@ -195,6 +200,7 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
     'the phone battery\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
   assert.equal(counts.threshPluginValueBoldMode, slotCount,
     'the Plugin value\'s Bold, in each slot\'s dialog (bars 4 to 6\'s too)');
+  assert.equal(counts.threshSunBoldMode, 2, 'the sun and moon slots\' Bold, in the Sun\'s and the Moon phase\'s');
   ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per metric picker)'));
@@ -2121,7 +2127,7 @@ test('Status bars tab (id watch): Your status bars, the All status bars card, th
   const SLOT_DIALOGS = slotCatalog.ALL_LINES.reduce((n, line) => n + line.slots.length, 0);
   assert.equal(SLOT_DIALOGS, 21, 'the four bars\' slots and bars 4 to 6\'s');
   assert.deepEqual(titles.slice(17),
-    ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
+    ['Temperature slot', 'Air pressure (hPa) slot', 'Sun slot', 'Moon phase slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Watch battery slot', 'Dew point slot']
       .concat(Array(SLOT_DIALOGS).fill('Phone battery slot'), ['Weather condition slot'],
@@ -2535,12 +2541,12 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // The phone battery has one dialog per slot (its Look is each slot's own), the others one per
   // kind.
   const SLOT_KEYS = slotCatalog.everySlotKey();
-  assert.equal(sheets.length, 19 + 2 * SLOT_KEYS.length,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), and the phone battery\'s and the Plugin value\'s one per slot');
+  assert.equal(sheets.length, 20 + 2 * SLOT_KEYS.length,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only), the Moon phase\'s, and the phone battery\'s and the Plugin value\'s one per slot');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
-      'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
+      'threshTemp', 'threshPressure', 'threshSun', 'threshMoon', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
       .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition'], SLOT_KEYS.map(slotCatalog.pluginValueSheet)),
     'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
@@ -2894,6 +2900,62 @@ test('resetStatusSlots restores each Show unit toggle to its schema default', ()
     assert.strictEqual(S[row.key], byKey(row.key).defaultValue,
       row.key + ' must come back as the schema ships it');
   });
+});
+
+// The Moon phase slot's Look, Shows and Name are slot settings like the weather condition's, so
+// the Status bars reset puts them back too.
+test('resetStatusSlots restores the Moon phase slot\'s Look, Shows and Name', () => {
+  const PConf = global.PConf;
+  const env = { thresholds: true, color: true, health: true };
+  const defaultOf = (key) => PConf.engine.resolveDefaultFrom(byKey(key), env);
+  const S = { moonSlotLook: 'text', moonSlotShows: 'full', moonSlotName: 'full' };
+  assert.equal(PConf.actions.resetStatusSlots(null, S, env, defaultOf), true);
+  assert.deepEqual([S.moonSlotLook, S.moonSlotShows, S.moonSlotName], ['both', 'phase', 'short']);
+});
+
+// The sun and moon slots' dialogs: the Sun's, which Sunrise/sunset, Dawn/dusk and Day length
+// open, says what the three show and holds their Bold; the Moon phase's leads with its Look, and
+// Shows and Name show only where they print something.
+test('the Sun slot\'s dialog: what the three sun slots show, then the Bold they share', () => {
+  const sun = sectionBySheet('threshSun');
+  assert.equal(sun.title, 'Sun slot');
+  assert.equal(sun.intro, 'Sunrise/sunset shows the next sunrise or sunset. Dawn/dusk shows the next dawn or dusk: '
+    + 'when it gets light in the morning and dark in the evening. Day length shows how long the sun is up today. '
+    + 'Your phone works all three out from your location.');
+  assert.deepEqual(sun.items.map((it) => [it.messageKey, it.hint]),
+    [['threshSunBoldMode', 'Applies to every sun and moon slot.']]);
+});
+
+test('the Moon phase slot\'s dialog: Look, Shows while it prints text, Name for the phase, Bold, every phase', () => {
+  const moon = sectionBySheet('threshMoon');
+  assert.equal(moon.title, 'Moon phase slot');
+  assert.equal(moon.pinBlock, 'statusBarsPreview', 'the bars pinned above it, as every slot dialog');
+  const rows = moon.items;
+  assert.deepEqual(rows.map((it) => it.messageKey || it.type),
+    ['moonSlotLook', 'moonSlotShows', 'moonSlotName', 'threshSunBoldMode', 'subheader', 'staticText', 'staticText']);
+  const [look, shows, name, bold, header, list, note] = rows;
+  assert.deepEqual([look.options, look.defaultValue], [[['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']], 'both']);
+  assert.deepEqual(look.hintByValue, { both: 'Shows the moon as it looks tonight and the text you pick under Shows.',
+    text: 'Shows the text alone.', icon: 'Shows the moon alone.' });
+  assert.deepEqual([shows.options, shows.defaultValue],
+    [[['Phase', 'phase'], ['Lit', 'lit'], ['Full moon', 'full']], 'phase']);
+  assert.deepEqual(shows.hintByValue, { phase: 'The phase’s name, like Wan gib for waning gibbous.',
+    lit: 'How much of the moon is lit, like 89%.', full: 'The day of the next full moon, like Thu or 24 Dec.' });
+  assert.deepEqual([name.options, name.defaultValue], [[['Short', 'short'], ['Full', 'full']], 'short']);
+  assert.deepEqual(name.hintByValue, {
+    'short': 'Short names, like Wan gib, in every slot. Full shows Waning gibbous in the middle slot.',
+    full: 'Full names, like Waning gibbous, in the middle slot. A side slot shows Wan gib.' });
+  assert.deepEqual([bold.label, bold.hint], ['Bold', 'Applies to every sun and moon slot.']);
+  assert.equal(header.text, 'Every phase');
+  assert.deepEqual(list.textFrom, { resolver: 'moonPhaseList' });
+  assert.equal(note.text, 'Worked out on your phone from the date, with no internet. South of the equator the picture '
+    + 'is mirrored, as you see the moon there.');
+  // Shows and Name follow what the Look prints, and Name only names a phase.
+  const seen = (item, S) => showWhen.isVisible(item, Object.assign({ env: platform.computeEnv({ platform: 'basalt' }) }, S));
+  assert.deepEqual([{}, { moonSlotLook: 'text' }, { moonSlotLook: 'icon' }].map((S) => seen(shows, S)), [true, true, false]);
+  assert.deepEqual([{}, { moonSlotShows: 'phase' }, { moonSlotShows: 'lit' }, { moonSlotShows: 'full' },
+    { moonSlotLook: 'icon' }, { moonSlotLook: 'text', moonSlotShows: 'phase' }].map((S) => seen(name, S)),
+  [true, true, false, false, false, true]);
 });
 
 // dateSlotFullFormat is the one reset key whose fresh-install value is COUNTRY-

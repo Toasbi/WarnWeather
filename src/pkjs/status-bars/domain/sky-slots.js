@@ -15,12 +15,6 @@ var moon = require('../../weather/domain/moon.js');
 /** The slots this module works out (catalog codes). */
 var CODES = ['twilight', 'dayLength', 'moon'];
 
-/** The Moon phase's icons by the phase's index (moon.js phaseOfDay), as the north sees the moon. */
-var MOON_ICONS = [
-    catalog.ICONS.MOON_NEW, catalog.ICONS.MOON_WAX_CRES, catalog.ICONS.MOON_FIRST_QTR, catalog.ICONS.MOON_WAX_GIB,
-    catalog.ICONS.MOON_FULL, catalog.ICONS.MOON_WAN_GIB, catalog.ICONS.MOON_LAST_QTR, catalog.ICONS.MOON_WAN_CRES
-];
-
 /**
  * @param {string} code A catalog item code.
  * @returns {boolean} Whether this module works the slot out (CODES).
@@ -88,27 +82,20 @@ function textOf(code, sky, settings, cap, now) {
 
 /**
  * A sun and moon slot's icon. Dawn/dusk draws the one that comes next, the dusk until a place is
- * known. Day length draws the sun. The Moon phase draws tonight's moon as it is seen from the
- * place, its waxing and waning halves the other way round south of the equator (and as the north
- * sees it until a place is known), the full moon where it shows the next full moon's day, and
- * none in its Text look.
+ * known. Day length draws the sun. The Moon phase's is slot-text.js moonIcon's: tonight's moon as
+ * it is seen from the place (as the north sees it until a place is known), the full moon where it
+ * shows the next full moon's day, and none in its Text look.
  * @param {string} code A CODES entry the readings were worked out for.
  * @param {SkyReadings} sky The bake's readings (readingsAt).
  * @param {Object} settings Clay settings blob.
  * @returns {number} A catalog ICONS id.
  */
 function iconOf(code, sky, settings) {
-    var look;
-    var phase;
     if (code === 'twilight') {
         return sky.twilight && sky.twilight.type === 'dawn' ? catalog.ICONS.DAWN : catalog.ICONS.DUSK;
     }
     if (code === 'dayLength') { return catalog.ICONS.DAY_LENGTH; }
-    look = slotText.moonLook(settings);
-    if (look === 'text') { return catalog.ICONS.MOON_TEXT; }
-    if (look === 'both' && slotText.moonShows(settings) === 'full') { return catalog.ICONS.MOON_FULL; }
-    phase = sky.moon.phase;
-    return MOON_ICONS[sky.position && sky.position.lat < 0 ? (8 - phase) % 8 : phase];
+    return slotText.moonIcon(sky.moon.phase, settings, Boolean(sky.position && sky.position.lat < 0));
 }
 
 /**

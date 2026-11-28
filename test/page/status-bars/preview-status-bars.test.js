@@ -159,6 +159,22 @@ test('the other phone-baked kinds print their units by their own toggles', () =>
   assert.equal(sample('sun', { axisTimeFormat: '12h', timeShowAmPm: true }), '7:14p');
 });
 
+test('the sun and moon slots print their samples as the phone prints the real ones', () => {
+  // The dusk after the Sunrise/sunset sample's sunset, in the user's clock format.
+  assert.equal(sample('twilight', {}), '19:52');
+  assert.equal(sample('twilight', { axisTimeFormat: '12h', timeShowAmPm: true }), '7:52p');
+  assert.equal(sample('dayLength', {}), '12h38');
+  // A waning gibbous moon, 89 % lit, the next full moon 26 days on: 3 Oct from 7 Sep.
+  assert.equal(sample('moon', {}, { cap: EDGE }), 'Wan gib', 'the short name, the default');
+  assert.equal(sample('moon', { moonSlotName: 'full' }, { cap: MID }), 'Waning gibbous', 'Full in the middle slot');
+  assert.equal(sample('moon', { moonSlotName: 'full' }, { cap: EDGE }), 'Wan gib', 'a side slot keeps the short name');
+  assert.equal(sample('moon', { moonSlotShows: 'lit' }, { cap: EDGE }), '89%');
+  assert.equal(sample('moon', { moonSlotShows: 'lit', moonSlotLook: 'text' }, { cap: EDGE }), '89% lit');
+  assert.equal(sample('moon', { moonSlotShows: 'full' }, { cap: EDGE }), '3 Oct', 'beside the full moon\'s picture');
+  assert.equal(sample('moon', { moonSlotShows: 'full' }, { cap: MID }), 'Full 3 Oct', 'the middle slot says what it is');
+  assert.equal(sample('moon', { moonSlotLook: 'icon' }, { cap: EDGE }), '', 'the Icon look: the moon alone');
+});
+
 test('the watch-rendered kinds print in the watch\'s own shapes', () => {
   assert.equal(sample('steps', {}), '6.2k');
   assert.equal(sample('sleep', {}), '7h12');

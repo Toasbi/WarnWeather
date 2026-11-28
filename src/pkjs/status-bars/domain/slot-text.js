@@ -380,6 +380,28 @@
         return settings && settings.moonSlotName === 'full' ? 'full' : 'short';
     }
 
+    /** The Moon phase's icons by the phase's index (MOON_NAMES' order), as the north sees the moon. */
+    var MOON_ICONS = [
+        catalog.ICONS.MOON_NEW, catalog.ICONS.MOON_WAX_CRES, catalog.ICONS.MOON_FIRST_QTR, catalog.ICONS.MOON_WAX_GIB,
+        catalog.ICONS.MOON_FULL, catalog.ICONS.MOON_WAN_GIB, catalog.ICONS.MOON_LAST_QTR, catalog.ICONS.MOON_WAN_CRES
+    ];
+
+    /**
+     * The Moon phase slot's icon: in its Text look the text-only id, which draws none; the full
+     * moon where its Icon + text look shows the next full moon's day; else tonight's moon as the
+     * place sees it, its waxing and waning halves the other way round south of the equator.
+     * @param {number} phase Tonight's phase (moon.js phaseOfDay: MOON_NAMES' index).
+     * @param {Object} settings Settings.
+     * @param {boolean} south Whether the moon is seen from south of the equator.
+     * @returns {number} A catalog ICONS id.
+     */
+    function moonIcon(phase, settings, south) {
+        var look = moonLook(settings);
+        if (look === 'text') { return catalog.ICONS.MOON_TEXT; }
+        if (look === 'both' && moonShows(settings) === 'full') { return catalog.ICONS.MOON_FULL; }
+        return MOON_ICONS[south ? (8 - phase) % 8 : phase];
+    }
+
     /**
      * The day of the next full moon as the Moon phase slot prints it: 'Today', its weekday in the
      * coming week or its date (dayText). Where the slot has the room it says what the day is:
@@ -624,6 +646,8 @@
         twilightText: twilightText,
         dayLengthText: dayLengthText,
         MOON_NAMES: MOON_NAMES,
+        MOON_ICONS: MOON_ICONS,
+        moonIcon: moonIcon,
         moonLook: moonLook,
         moonShows: moonShows,
         moonName: moonName,

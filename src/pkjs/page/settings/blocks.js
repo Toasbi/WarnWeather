@@ -60,6 +60,10 @@ if (typeof require !== 'undefined') {
     // file), whose Icon look badges no bold either.
     var pluginValues = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
+    // The Moon phase's pictures (preview-status-bars.js, concatenated ahead of this file), which
+    // its dialog's list of every phase draws.
+    var statusBarsPreview = (typeof require !== 'undefined')
+        ? require('../status-bars/preview-status-bars.js') : window.PreviewStatusBars;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -163,8 +167,9 @@ if (typeof require !== 'undefined') {
     // for the slot's CURRENT value, when that value is a threshold kind, whatever its Look
     // (the Look is the dialog's first row). The catalog's slot codes and the threshold
     // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
-    // contract IS the mapping — no hand-copied list to drift; the sun and moon slots worked out
-    // on the phone open the Sunrise/sunset slot's, whose kind they take. The phone battery's and the
+    // contract IS the mapping — no hand-copied list to drift; the sun slots worked out on the
+    // phone open the Sunrise/sunset slot's, whose kind they take, and the Moon phase, which takes
+    // it too, opens its own (schema.js moonSlotSheet). The phone battery's and the
     // Plugin value's dialogs are their slot's own, since their Look and source are
     // (status-line-catalog.js phoneBatterySheet, pluginValueSheet): a dialog is told nothing
     // of the slot that opened it, but this resolver is. env gate mirrors the sheets' own
@@ -175,6 +180,9 @@ if (typeof require !== 'undefined') {
         if (kind === -1) { return null; }
         if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
         if (code === 'pluginValue') { return statusLineCatalog.pluginValueSheet(args.messageKey); }
+        // The Moon phase has a dialog of its own (its Look, Shows and Name), though it takes the
+        // Sunrise/sunset slot's kind.
+        if (code === 'moon') { return 'threshMoon'; }
         return 'thresh' + thresholds.KINDS[kind].key;
     });
 
@@ -690,6 +698,7 @@ if (typeof require !== 'undefined') {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
         var schemaKeys = ['statusBoldAll', 'conditionSlotLook', 'conditionSlotName', 'citySlotIcon',
+            'moonSlotLook', 'moonSlotShows', 'moonSlotName',
             'tempSlotDisplay',
             // How the temp slot prints its pair in Both mode (separator preset,
             // custom separator text, spacing, which value leads).
@@ -1140,6 +1149,32 @@ if (typeof require !== 'undefined') {
         return html + '</table>';
     }
     PConf.hintResolvers.register('conditionList', conditionList);
+
+    /**
+     * The Moon phase slot dialog's list of every phase (its staticText's textFrom), laid out like
+     * the weather condition's (conditionList): its picture as the north sees it
+     * (preview-status-bars.js moonOutline), its name and the short form, one row each, in the
+     * moon's order from the new moon (slot-text.js MOON_NAMES, MOON_ICONS).
+     * @param {Object} S Live settings state (unused).
+     * @param {Object} env Platform env (unused).
+     * @returns {string} HTML.
+     */
+    function moonPhaseList(S, env) {
+        var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+            + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
+            + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
+        slotText.MOON_NAMES.forEach(function (names, phase) {
+            var icon = (statusBarsPreview.moonOutline(slotText.MOON_ICONS[phase]) || '')
+                .replace('<svg ', '<svg width="24" height="24" aria-hidden="true" ');
+            html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
+                + '<td style="' + cell + '"><span style="display:inline-flex;align-items:center;">' + icon + '</span></td>'
+                + '<td style="' + cell + '">' + names.full + '</td>'
+                + '<td style="' + cell + 'font-weight:600;letter-spacing:.02em;">' + names['short'] + '</td></tr>';
+        });
+        return html + '</table>';
+    }
+    PConf.hintResolvers.register('moonPhaseList', moonPhaseList);
 
     // What the Alerts tab's resolvers (alerts-page.js, which loads after this file) read
     // from the threshold machinery above: a kind's slider geometry, for the unit a metric

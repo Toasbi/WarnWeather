@@ -14,7 +14,11 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 // card's moon (also the Status slots tab's read-only Alerts rows, by on-demand.js ITEMS
 // icon), and the rest of the slot items the watch draws a glyph for.
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'moon',
-  'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun'];
+  'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'twilight', 'dayLength'];
+// The Moon phase slot's pictures, its eight phases from the new moon (slot-text.js MOON_ICONS'
+// order), as the north sees them.
+const MOON_PHASES = ['moonNew', 'moonWaxCres', 'moonFirstQtr', 'moonWaxGib', 'moonFull', 'moonWanGib', 'moonLastQtr',
+  'moonWanCres'];
 // The Plugin value's icons the slots above have none of (plugin-value-page.js OUTLINE_NAMES).
 const PLUGIN_VALUE = ['switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff', 'plug', 'tide'];
 
@@ -22,7 +26,7 @@ const PLUGIN_VALUE = ['switchOn', 'switchOff', 'wifi', 'wifiOff', 'bluetoothOff'
 const WEATHER = ['rain', 'condition'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
-  IDS.concat(['condition'], PLUGIN_VALUE).forEach((id) => {
+  IDS.concat(['condition'], PLUGIN_VALUE, MOON_PHASES).forEach((id) => {
     const svg = ICONS[id];
     assert.equal(typeof svg, 'string', id + ' is exported');
     assert.ok(svg.indexOf('<svg viewBox="0 0 24 24"') === 0, id + ' opens a 24x24 svg');
@@ -47,7 +51,7 @@ test('the weather icons are the condition slot\'s: the rain alert\'s rain cloud,
 });
 
 test('every glyph is a Tabler-style outline', () => {
-  IDS.concat(['condition'], PLUGIN_VALUE).forEach((id) => {
+  IDS.concat(['condition'], PLUGIN_VALUE, MOON_PHASES).forEach((id) => {
     assert.ok(ICONS[id].indexOf('fill="none" stroke="currentColor" stroke-width="1.8"') !== -1,
       id + ' is an unfilled 1.8 outline');
     assert.ok(ICONS[id].indexOf('stroke-linecap="round" stroke-linejoin="round"') !== -1,
@@ -58,7 +62,7 @@ test('every glyph is a Tabler-style outline', () => {
 test('requiring the module with the engine loaded registers every glyph', () => {
   // The module registered at require time above: engine.js had already attached
   // PConf.icons to the shared global, which is exactly the page's load order.
-  IDS.concat(PLUGIN_VALUE).forEach((id) => {
+  IDS.concat(PLUGIN_VALUE, MOON_PHASES).forEach((id) => {
     assert.equal(global.PConf.icons.get(id), ICONS[id], id + ' is in PConf.icons');
   });
   const row = E.renderRow({ type: 'toggle', messageKey: 'alertUv', label: 'UV index', icon: 'uv' },
@@ -113,6 +117,39 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
   // The watch battery is its own drawn glyph on the bars (preview-watch.js batteryGlyph);
   // its registered outline is the Alerts rows' and the Status bars tab's.
   assert.equal(slotIcon('battery', basalt), ICONS.battery);
+  // The sun and moon slots: the sample's dusk, the Clear sun, and the sample's waning gibbous
+  // moon by its Look (slot-text.js moonIcon): the full moon beside the next full moon's day,
+  // none in the Text look.
+  assert.equal(slotIcon('twilight', basalt), ICONS.twilight);
+  assert.equal(slotIcon('dayLength', basalt), ICONS.dayLength);
+  assert.equal(ICONS.dayLength, require('../../../src/pkjs/page/weather/condition-icons.js').svg('SUN'),
+    'Day length draws the Clear sun, as the watch does');
+  assert.equal(slotIcon('moon', basalt), ICONS.moonWanGib, 'Icon + text, the default: tonight\'s moon');
+  assert.equal(slotIcon('moon', basalt, { moonSlotLook: 'icon', moonSlotShows: 'full' }), ICONS.moonWanGib,
+    'the Icon look: tonight\'s moon, whatever Shows says');
+  assert.equal(slotIcon('moon', basalt, { moonSlotShows: 'full' }), ICONS.moonFull, 'beside the next full moon\'s day');
+  assert.equal(slotIcon('moon', basalt, { moonSlotLook: 'text' }), null, 'the Text look: none');
+});
+
+test('the Moon phase\'s pictures are the phases in slot-text.js MOON_ICONS\' order, the lit part filled', () => {
+  const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
+  const { moonOutline } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
+  assert.deepEqual(slotText.MOON_ICONS.map(moonOutline), MOON_PHASES.map((id) => ICONS[id]));
+  assert.equal(moonOutline(require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS.MOON_TEXT),
+    null, 'the Text look\'s id has no picture');
+  // As the watch draws them: the new moon a dotted ring, the full moon filled, the others the
+  // outline with the lit part filled.
+  assert.ok(/stroke-dasharray/.test(ICONS.moonNew) && !/fill="currentColor"/.test(ICONS.moonNew), 'new: a dotted ring');
+  assert.ok(/<circle[^>]*fill="currentColor"/.test(ICONS.moonFull), 'full: filled');
+  MOON_PHASES.filter((id) => id !== 'moonNew' && id !== 'moonFull').forEach((id) => {
+    assert.ok(/<circle cx="12" cy="12" r="8.5"\/><path d="[^"]+" fill="currentColor" stroke="none"\/>/.test(ICONS[id]),
+      id + ': the outline, the lit part filled');
+  });
+  // Waxing and waning are mirror images: the waxing moon lit on the right, the waning on the left.
+  [['moonWaxCres', 'moonWanCres'], ['moonFirstQtr', 'moonLastQtr'], ['moonWaxGib', 'moonWanGib']].forEach(([wax, wan]) => {
+    assert.ok(/A8\.5 8\.5 0 0 1 12 20\.5/.test(ICONS[wax]), wax + ': the right half\'s rim');
+    assert.ok(/A8\.5 8\.5 0 0 0 12 20\.5/.test(ICONS[wan]), wan + ': the left half\'s rim');
+  });
 });
 
 test('aplite draws only the glyphs of its lean row: the bitmap masks and the sun arrow', () => {
@@ -147,8 +184,13 @@ test('each slot item names the drawing the watch pictures draw at a bar\'s box, 
   Object.keys(preview.SLOT_DRAWINGS).forEach((code) => {
     assert.ok(STATUS.icons[preview.SLOT_DRAWINGS[code]], code + ': ' + preview.SLOT_DRAWINGS[code] + ' is a drawing');
   });
-  // The moon is the Alerts item's outline: the watch draws the day's phase in its place.
+  // The moon is the Alerts item's outline: the Moon phase slot's drawing follows its Look.
   assert.deepEqual(Object.keys(preview.SLOT_DRAWINGS).sort(),
     IDS.filter((id) => ['battery', 'snooze', 'sun', 'moon'].indexOf(id) === -1).concat(['condition']).sort(),
     'every glyph but the three drawn in code and the moon');
+  const sky = (extra) => preview.barSlots(Object.assign({ statusTopLeft: 'twilight', statusTopMid: 'moon',
+    statusTopRight: 'dayLength' }, extra), basalt, 'top').map((c) => c.drawing);
+  assert.deepEqual(sky({}), ['DUSK', 'MOON_WAN_GIB', 'SUN'], 'the dusk, tonight\'s moon and the Clear sun');
+  assert.deepEqual(sky({ moonSlotShows: 'full' }), ['DUSK', 'MOON_FULL', 'SUN'], 'the full moon beside its day');
+  assert.deepEqual(sky({ moonSlotLook: 'text' }), ['DUSK', null, 'SUN'], 'the Text look draws none');
 });

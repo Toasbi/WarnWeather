@@ -193,7 +193,8 @@ var APP_FILES = [
   // The status icons as the watch draws them (window.StatusPixels, from
   // scripts/pixel-icons/gen_watch_icons.js), and the SVG they draw as and each icon id's drawing
   // (window.PixelIcon, which binds StatusPixels and StatusLineCatalog while its body runs):
-  // plugin-value-page.js and preview-watch.js read PixelIcon while theirs run.
+  // plugin-value-page.js, preview-status-bars.js and preview-watch.js read PixelIcon while
+  // theirs run.
   path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
   path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
   // The plugin values WarnWeather knows (window.KnownValues, a leaf): their names. The Plugin
@@ -202,8 +203,9 @@ var APP_FILES = [
   // binds that.
   path.join(ROOT, 'src/pkjs/status-bars/domain/known-values.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
-  // The Status bars tab's pinned preview (reads StatusLineCatalog, OnDemand, VIEW_CYCLE,
-  // PreviewSvg and the slot-text chain above at render).
+  // The Status bars tab's pinned preview (binds PixelIcon and PluginValuePage while its body
+  // runs; reads StatusLineCatalog, OnDemand, VIEW_CYCLE, PreviewSvg and the slot-text chain above
+  // at render). blocks.js binds it as it loads: the Moon phase dialog's list of every phase.
   path.join(ROOT, 'src/pkjs/page/status-bars/preview-status-bars.js'),
   // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
   path.join(ROOT, 'src/pkjs/page/health/preview-health.js'),

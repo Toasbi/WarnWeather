@@ -696,6 +696,89 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
     return sheetOf(keyStem, title, gateAll(items, gate));
 }
 
+// The sun and moon slots' Bold: one setting, the Sunrise/sunset slot's kind, which Dawn/dusk, Day
+// length and the Moon phase take too (status-thresholds.js itemKindId), so its hint says so for
+// either value.
+/**
+ * @returns {Object} The Bold row of the Sun and the Moon phase slots' dialogs.
+ */
+function skyBoldRow() {
+    var row = boldOnlyRow('Sun');
+    delete row.hintByValue;
+    row.hint = 'Applies to every sun and moon slot.';
+    return row;
+}
+
+// The Sun slot's dialog, which Edit opens beside Sunrise/sunset, Dawn/dusk and Day length
+// (blocks.js statusSlotEditSheet): what the three show, then Bold.
+/**
+ * @returns {Object} The Sun slot's sheet (sheetOnly).
+ */
+function sunSlotSheet() {
+    return Object.assign(sheetOf('Sun', 'Sun', [skyBoldRow()]), {
+        intro: 'Sunrise/sunset shows the next sunrise or sunset. Dawn/dusk shows the next dawn or dusk: when it '
+            + 'gets light in the morning and dark in the evening. Day length shows how long the sun is up today. '
+            + 'Your phone works all three out from your location.'
+    });
+}
+
+// The Moon phase slot's dialog (sheet 'threshMoon', which Edit opens beside it: blocks.js
+// statusSlotEditSheet). Its Look leads, with the weather condition's options in its order: the
+// moon as it looks tonight with the text Shows picks (Icon + text), the text alone (Text) or the
+// moon alone (Icon; slot-text.js moonLook). Shows (moonShows) and Name (moonName, the phase's
+// name only) show while the Look prints text. Every Moon phase slot shows them alike, and the
+// phone bakes them (sky-slots.js), so a change reaches the watch when the page closes
+// (status-rebake.js resendStatus). Then Bold, the Sun's, and a card of every phase with its
+// picture and both names (blocks.js moonPhaseList), its footnote saying where the moon comes from.
+var MOON_TEXT_WHEN = {key: 'moonSlotLook', ne: 'icon'};
+/**
+ * @returns {Object} The Moon phase slot's sheet (sheetOnly).
+ */
+function moonSlotSheet() {
+    return sheetOf('Moon', 'Moon phase', [{
+        type: 'segmented',
+        messageKey: 'moonSlotLook',
+        label: 'Look',
+        hintByValue: {
+            both: 'Shows the moon as it looks tonight and the text you pick under Shows.',
+            text: 'Shows the text alone.',
+            icon: 'Shows the moon alone.'
+        },
+        defaultValue: 'both',
+        options: [['Icon + text', 'both'], ['Text', 'text'], ['Icon', 'icon']]
+    }, {
+        type: 'segmented',
+        messageKey: 'moonSlotShows',
+        label: 'Shows',
+        showWhen: MOON_TEXT_WHEN,
+        hintByValue: {
+            phase: 'The phase’s name, like Wan gib for waning gibbous.',
+            lit: 'How much of the moon is lit, like 89%.',
+            full: 'The day of the next full moon, like Thu or 24 Dec.'
+        },
+        defaultValue: 'phase',
+        options: [['Phase', 'phase'], ['Lit', 'lit'], ['Full moon', 'full']]
+    }, {
+        type: 'segmented',
+        messageKey: 'moonSlotName',
+        label: 'Name',
+        showWhen: {all: [MOON_TEXT_WHEN, {key: 'moonSlotShows', nin: ['lit', 'full']}]},
+        hintByValue: {
+            'short': 'Short names, like Wan gib, in every slot. Full shows Waning gibbous in the middle slot.',
+            full: 'Full names, like Waning gibbous, in the middle slot. A side slot shows Wan gib.'
+        },
+        defaultValue: 'short',
+        options: [['Short', 'short'], ['Full', 'full']]
+    }, skyBoldRow(), {type: 'subheader', text: 'Every phase'}, {
+        type: 'staticText',
+        textFrom: {resolver: 'moonPhaseList'}
+    }, {
+        type: 'staticText',
+        text: 'Worked out on your phone from the date, with no internet. South of the equator the picture is '
+            + 'mirrored, as you see the moon there.'
+    }]);
+}
+
 // The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
 // statusSlotEditSheet). Its Look leads, with the weather condition's options in its order:
 // the battery the watch draws and its charge as text after it (Icon + text), the text alone
@@ -2208,7 +2291,10 @@ module.exports = {
             })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
-        boldSection('Sunrise/sunset', 'Sun'),
+        // The sun and moon slots' dialogs: the Sun's for Sunrise/sunset, Dawn/dusk and Day
+        // length, the Moon phase's its own (sunSlotSheet, moonSlotSheet).
+        sunSlotSheet(),
+        moonSlotSheet(),
         // The date slot renders TWO different strings, and which one is on screen
         // is the calendar's call, not the slot's (status_row.c format_status_date:
         // calendar views show the day in the grid, so the slot compresses to
