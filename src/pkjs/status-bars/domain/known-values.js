@@ -100,10 +100,11 @@
     }
 
     /**
+     * Whether a value is one WarnWeather supports, which its Value row lists first.
      * @param {string} category A value's source's category.
      * @param {string} item Its item.
      * @param {string} property Its property.
-     * @returns {boolean} Whether WarnWeather supports it (SUPPORTED).
+     * @returns {boolean} Whether SUPPORTED holds it.
      */
     function supports(category, item, property) {
         return entryIn(SUPPORTED, pluginValues.valueId(category, item, property)) !== null;

@@ -266,7 +266,8 @@ function keptValues(found, held) {
  * (keptValues). Every slot's, whether or not a bar the watch is sent shows it: its dialog lists
  * the plugin's values all the same.
  * @param {?Object} settings Clay settings.
- * @returns {Object<string, string[]>} Value ids (a pick's id), by the plugin's uuid in lower case.
+ * @returns {Object<string, string[]>} Value ids (a pick's id), each once, by the plugin's uuid in
+ *   lower case.
  */
 function heldOf(settings) {
     var held = {};
@@ -274,7 +275,8 @@ function heldOf(settings) {
         var pick = settings && settings[slotKey] === 'pluginValue' ? pluginValues.pickOf(settings, slotKey) : null;
         if (pick && typeof pick.plugin === 'string' && typeof pick.id === 'string' && pick.id) {
             var uuid = pick.plugin.toLowerCase();
-            held[uuid] = (held[uuid] || []).concat([pick.id]);
+            held[uuid] = held[uuid] || [];
+            if (held[uuid].indexOf(pick.id) === -1) { held[uuid].push(pick.id); }
         }
     });
     return held;
