@@ -229,37 +229,34 @@ function alertLooksAheadWhen(daysKey) {
  * only for a kind placed on a bar whose day — today, or with Days "Today + tomorrow"
  * tomorrow — reaches its warn level (status-wire.js bakedAlerts), so the Look, the
  * Days and the mark ride renderSignature(), not the Clay message.
- * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>Display,
- *     alert<Stem>Days, alert<Stem>NextDayMark).
- * @param {string} title The kind's sheet title, e.g. 'UV index'.
- * @param {string} subject The value the intro names, e.g. 'the UV index'.
- * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
- * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
- * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] The kind's notes on
- *     its default levels (ALERT_LEVEL_CARDS), under the dialog's intro.
+ * @param {Object} kind The kind's ALERT_KINDS entry: its keyStem (alert<Stem>Display,
+ *     alert<Stem>Days, alert<Stem>NextDayMark), title, subject, iconName, and the
+ *     daySubject, coda and why it may carry.
  * @returns {Object} Schema section (sheetOnly).
  */
-function alertSheet(keyStem, title, subject, iconName, coda, why) {
-    var key = 'alert' + keyStem;
-    var code = alertCodeOf(keyStem);
+function alertSheet(kind) {
+    var key = 'alert' + kind.keyStem;
+    var code = alertCodeOf(kind.keyStem);
     return {
         sheetOnly: true,
         sheetId: key,
         showWhen: ON_DEMAND_WHEN,
-        title: title + ' alert',
+        title: kind.title + ' alert',
         // "reaches … today": the entry fires on the highest value left today, so the
-        // morning icon for an afternoon peak is by design (status-wire alertReading).
-        // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
-        intro: 'Shows the ' + iconName + ' icon at the edge of a status bar when ' + subject
-            + ' reaches your warn level at any time in the rest of today, so an afternoon peak already shows in the morning.'
-            + (coda || ''),
+        // morning icon for an afternoon peak is by design (status-wire alertReading); a kind
+        // with one level a day speaks of that level instead. `coda` closes it for a kind
+        // whose look-ahead depends on its source (AQI).
+        intro: 'Shows the ' + kind.iconName + ' icon at the edge of a status bar when '
+            + (kind.daySubject ? kind.daySubject + ' reaches your warn level.'
+                : kind.subject + ' reaches your warn level at any time in the rest of today, so an afternoon peak already shows in the morning.')
+            + (kind.coda || ''),
         // The note on the default levels for the unit or AQI scale in effect, under the intro
         // in the dialog's intro card (engine dialogIntroHtml; owner, 2026-10-04).
-        introNotes: why || [],
+        introNotes: kind.why || [],
         // The two hidden companions close levelLead, so the Look below keeps the divider
         // the cards draw; the warn look starts its own group (levelLook, joinsAbove
         // false) rather than gluing itself under Tomorrow's mark or Days.
-        items: showsOnRows(code, subject).concat(levelLead(keyStem, ALERT_VOICE, '', null), [{
+        items: showsOnRows(code, kind.subject).concat(levelLead(kind.keyStem, ALERT_VOICE, '', null), [{
             type: 'segmented',
             messageKey: key + 'Display',
             label: 'Look',
@@ -287,7 +284,9 @@ function alertSheet(keyStem, title, subject, iconName, coda, why) {
             options: ALERT_DAYS_OPTIONS,
             more: true,
             hintByValue: {
-                tomorrow: 'If nothing in the rest of today reaches your warn level but tomorrow does, the alert shows for tomorrow, with the mark set in Tomorrow’s mark.'
+                tomorrow: (kind.daySubject ? 'If today’s level stays below your warn level but tomorrow’s reaches it'
+                    : 'If nothing in the rest of today reaches your warn level but tomorrow does')
+                    + ', the alert shows for tomorrow, with the mark set in Tomorrow’s mark.'
             }
         }, {
             // How a tomorrow entry marks its day: the slot's "Tomorrow's peak mark"
@@ -305,7 +304,7 @@ function alertSheet(keyStem, title, subject, iconName, coda, why) {
             joinPrevious: true,
             more: true,
             showWhen: alertLooksAheadWhen(key + 'Days')
-        }], levelLook(keyStem, ALERT_VOICE, null, undefined, false, true))
+        }], levelLook(kind.keyStem, ALERT_VOICE, null, undefined, false, true))
     };
 }
 /**
@@ -428,8 +427,10 @@ var ALERT_LEVEL_CARDS = {
 };
 // The weather alerts' rows and sheets, in the card's order. `title` names both of a kind's
 // sheets (its alert sheet here, its slot sheet — schema.js alertSlotSheet); `subject` and
-// `iconName` feed the alert sheet's intro; `why` is the kind's alert-level cards
-// (ALERT_LEVEL_CARDS). The page's
+// `iconName` feed the alert sheet's intro; `daySubject`, on a kind with one level a day
+// (pollen: status-wire alertReading reads today's band), names that level, so the intro and
+// the Days hint speak of the day's level, not of the rest of today's peak; `why` is the
+// kind's alert-level cards (ALERT_LEVEL_CARDS). The page's
 // presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS, which
 // owns which alerts exist and their order): test/page/settings/config-schema.test.js pins this list's
 // stems to that order.
@@ -448,7 +449,7 @@ var ALERT_KINDS = [
         coda: ' To look ahead to later today and tomorrow, pick Open-Meteo for Air quality (Setup › Data sources). '
             + 'WAQI, which Auto mostly reads, has no forecast, so with it the alert uses the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen level', iconName: 'pollen',
-        icon: 'pollen', why: ALERT_LEVEL_CARDS.Pollen},
+        daySubject: 'today’s pollen level', icon: 'pollen', why: ALERT_LEVEL_CARDS.Pollen},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
         icon: 'wind', why: ALERT_LEVEL_CARDS.Wind}
 ];
@@ -751,7 +752,7 @@ function sheetSections() {
         placementSheet('odSleep', 'Battery saver', 'snooze',
             'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
-        return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.coda || '', k.why);
+        return alertSheet(k);
     }));
 }
 

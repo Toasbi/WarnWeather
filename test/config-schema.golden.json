@@ -17040,7 +17040,7 @@
               "env": "onDemand"
             },
             "title": "Pollen alert",
-            "intro": "Shows the pollen icon at the edge of a status bar when the pollen level reaches your warn level at any time in the rest of today, so an afternoon peak already shows in the morning.",
+            "intro": "Shows the pollen icon at the edge of a status bar when today’s pollen level reaches your warn level.",
             "introNotes": [
               {
                 "showWhen": {
@@ -17167,7 +17167,7 @@
                 ],
                 "more": true,
                 "hintByValue": {
-                  "tomorrow": "If nothing in the rest of today reaches your warn level but tomorrow does, the alert shows for tomorrow, with the mark set in Tomorrow’s mark."
+                  "tomorrow": "If today’s level stays below your warn level but tomorrow’s reaches it, the alert shows for tomorrow, with the mark set in Tomorrow’s mark."
                 }
               },
               {

@@ -1693,9 +1693,13 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     const coda = stem === 'Aqi' ? ' To look ahead to later today and tomorrow, pick Open-Meteo for Air'
       + ' quality (Setup › Data sources). WAQI, which Auto mostly reads, has no forecast, so with it the alert'
       + ' uses the current reading.' : '';
+    // Pollen has one level a day (status-wire alertReading reads today's band): its intro and
+    // its Days hint speak of that level, not of the rest of today's peak.
+    const daily = stem === 'Pollen';
     assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
-      + SUBJECT[stem] + ' reaches your warn level at any time in the rest of today, so an afternoon peak'
-      + ' already shows in the morning.' + coda, s.sheetId + ' intro');
+      + (daily ? 'today’s pollen level reaches your warn level.'
+        : SUBJECT[stem] + ' reaches your warn level at any time in the rest of today, so an afternoon peak'
+          + ' already shows in the morning.') + coda, s.sheetId + ' intro');
     const lookAt = s.items.findIndex(it => it.messageKey === key + 'Display');
     assert.deepEqual(s.items.slice(lookAt, lookAt + 3), [{
       // Icon + value by default since 2.0.1 (status-thresholds.js enabledAlerts reads an
@@ -1718,8 +1722,9 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
       options: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']],
       more: true,
       hintByValue: {
-        tomorrow: 'If nothing in the rest of today reaches your warn level but tomorrow does, the alert shows'
-          + ' for tomorrow, with the mark set in Tomorrow’s mark.'
+        tomorrow: (daily ? 'If today’s level stays below your warn level but tomorrow’s reaches it'
+          : 'If nothing in the rest of today reaches your warn level but tomorrow does')
+          + ', the alert shows for tomorrow, with the mark set in Tomorrow’s mark.'
       }
     }, {
       // The tomorrow mark: the slot's choices, the » by default, shown only while the
