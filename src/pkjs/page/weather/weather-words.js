@@ -13,7 +13,7 @@
     var html = typeof require !== 'undefined' ? require('../../config-ui/lib/html.js') : window.PConf.html;
     var WORDS = { currentTemp: 'current temperature', currentFeels: 'current feels-like',
         condition: 'weather condition', temperature: 'temperature', feels: 'feels-like', dew: 'dew point',
-        rainChance: 'rain chance', rainAmount: 'rain amount', wind: 'wind speed', gust: 'wind gusts',
+        rainChance: 'precipitation chance', rainAmount: 'precipitation amount', wind: 'wind speed', gust: 'wind gusts',
         windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure' };
     var NAMES = { dwd: 'DWD', metno: 'Met.no', openmeteo: 'Open-Meteo', openweathermap: 'OpenWeatherMap',
         tomorrowio: 'Tomorrow.io', wunderground: 'Weather Underground', yandex: 'Yandex Weather' };

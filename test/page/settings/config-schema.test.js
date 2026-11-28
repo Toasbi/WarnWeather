@@ -105,7 +105,7 @@ const EXPECTED_KEYS = [
   'weatherSourceCurrentTemp', 'weatherSourceCurrentFeels', 'weatherSourceCondition', 'weatherSourceTemperature',
   'weatherSourceFeels', 'weatherSourceDew', 'weatherSourceRainChance', 'weatherSourceRainAmount', 'weatherSourceWind',
   'weatherSourceGust', 'weatherSourceWindDir', 'weatherSourceUv', 'weatherSourceCloud', 'weatherSourcePressure',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','openMeteoModel','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','forecastHours',
   'forecastAxisNumbers','forecastAxisScale','doubleFlick','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab',
   // Setup › Misc › Hide info text: page-only like startOnWeatherTab (rides the saved blob,
@@ -1171,8 +1171,8 @@ test('metric pickers keep only the notes that hold whatever the style', () => {
 test('a metric picker names a gap in the picked provider only', () => {
   const pick = (m, provider) => hintOf('secondaryLine', { secondaryLine: m, provider }, STYLED_ENV);
   const METNO = 'Not available with Met.no outside the Nordics.';
-  // Yandex's cloud cover, air pressure and dew point come from Open-Meteo (the note under the
-  // Provider says so), so its pickers name no gap.
+  // Yandex's cloud cover, air pressure and dew point come from Open-Meteo (their rows under the
+  // Weather dialog's Other sources say so), so its pickers name no gap.
   ['cloud', 'pressure'].forEach((m) => assert.equal(pick(m, 'yandex'), '', m));
   assert.equal(pick('dew', 'yandex'), 'The closer it runs to the temperature, the more humid it feels.');
   assert.equal(pick('gust', 'metno'), 'Shows the hourly peak. ' + METNO, 'after the metric\'s note');

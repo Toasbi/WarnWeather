@@ -116,15 +116,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * A list's row that opens something of its own (a picker, a dialog): its name, the line under
    * it and the red arrow, then the × that takes it out of the list where it can go (the Weather
    * dialog's Other sources). The rows' wrapper carries role="list".
-   * @param {{name: string, line: string, at: Object, x: ?Object}} o The name; the line under it
-   *   ('' for none); what a tap on the row does (its attributes); the ×'s attributes, its
-   *   aria-label among them (null: no ×).
+   * @param {{name: string, line: string, at: Object, x: ?Object, accent: (boolean|undefined)}} o
+   *   The name; the line under it ('' for none); what a tap on the row does (its attributes);
+   *   the ×'s attributes, its aria-label among them (null: no ×); whether the line is in the
+   *   accent (something the row asks for: a value without a source).
    * @returns {string} Markup
    */
   function listRow(o) {
     return '<div class="ui-row ui-item" role="listitem"><button type="button" class="ui-open"' + attrs(o.at) + '>'
       + '<span class="ui-txt"><span class="ui-n">' + esc(o.name) + '</span>'
-      + (o.line ? '<span class="ui-d">' + esc(o.line) + '</span>' : '') + '</span>' + navArrow() + '</button>'
+      + (o.line ? '<span class="ui-d' + (o.accent ? ' txt-acc' : '') + '">' + esc(o.line) + '</span>' : '') + '</span>'
+      + navArrow() + '</button>'
       + (o.x ? '<button type="button" class="ui-x"' + attrs(o.x) + '>' + icon('x') + '</button>' : '') + '</div>';
   }
 

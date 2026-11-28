@@ -909,7 +909,7 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
   });
   [code('window.OpenMeteoModels = api'), code('window.ProviderReadings = api'), code('window.SourcePlan = api'),
     code('window.DrawnReadings = api'),
-    code('window.WeatherSourcesPage = api'), "register('weatherFillNote'"].forEach((s) => {
+    code('window.WeatherSourcesPage = api'), "register('weatherAmountPickTail'"].forEach((s) => {
     assert.ok(page().indexOf(s) !== -1, s + ' is not in the generated page');
   });
 });

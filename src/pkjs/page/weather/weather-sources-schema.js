@@ -1,13 +1,14 @@
 // src/pkjs/page/weather/weather-sources-schema.js — ES5, PKJS-parsed. Where the weather comes
 // from, split out of schema.js like alerts-schema.js: the Weather row of Setup › Data sources,
 // and the Weather dialog it opens (dialogSections, which schema.js puts after the card): the
-// Provider picker with its options and its texts, the notes under it (the readings it lacks that
-// come from Open-Meteo, the calls a day), its key row, and the pickers of the dialog's Other
-// sources list. The notes' texts and the pickers' options are weather-sources-page.js's. Plain
-// CommonJS: the schema is built in PKJS and reaches the page as data.
+// Provider picker with its options and its texts, Open-Meteo's Model picker under it, the calls a
+// day, its key row, and the pickers of the dialog's Other sources list. The notes' texts and the
+// pickers' options are weather-sources-page.js's. Plain CommonJS: the schema is built in PKJS and
+// reaches the page as data.
 
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
+var openMeteoModels = require('../../weather/domain/open-meteo-models.js');
 // A picker's title: its reading's name (weather-words.js label).
 var words = require('./weather-words.js');
 
@@ -17,7 +18,7 @@ var words = require('./weather-words.js');
 var PROVIDER_OPTIONS = [
     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
-    ['Open-Meteo', 'openmeteo', {desc: 'Picks the best national model · no key'}],
+    ['Open-Meteo', 'openmeteo', {desc: 'ECMWF or a model you pick · no key'}],
     ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise local forecasts, worldwide · needs a free key'}],
     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
@@ -34,11 +35,73 @@ var TOMORROWIO_CREDIT = 'Powered by <a target=\'_blank\' href=\'https://www.tomo
 var PROVIDER_WHY = {
     dwd: 'Germany\'s national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.',
     metno: 'The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.',
-    openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
+    openmeteo: 'Free, no API key. Uses ECMWF\'s global model, or the model you pick under Model.',
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
     tomorrowio: 'Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. ' + TOMORROWIO_CREDIT,
     wunderground: 'A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.',
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
+};
+
+/**
+ * A weather model's line under its name in the Model picker: its area and grid, and what it
+ * lacks ("Austria, 1 km · no precipitation amount").
+ * @param {Object} model An open-meteo-models.js MODELS row.
+ * @returns {string}
+ */
+function modelDesc(model) {
+    return model.area + ', ' + model.grid + (model.id === openMeteoModels.DEFAULT ? ' · default' : '')
+        + (openMeteoModels.bringsAmount(model.id) ? '' : ' · no precipitation amount');
+}
+
+// Open-Meteo's weather models as the Model picker lists them (open-meteo-models.js MODELS): the
+// worldwide ones, then the national ones, each group under its header.
+var MODEL_OPTIONS = [['Worldwide', true], ['National', false]].reduce(function (out, group) {
+    var models = openMeteoModels.MODELS.filter(function (model) { return model.worldwide === group[1]; });
+    return out.concat([[group[0], '__hdr_' + group[0].toLowerCase(), {disabled: true, groupHeader: true}]],
+        models.map(function (model, i) {
+            return [model.name, model.id, {desc: modelDesc(model), groupChild: true, groupEnd: i === models.length - 1}];
+        }));
+}, []);
+
+// Where a model's precipitation chance comes from (open-meteo-models.js chance), said under the
+// Model row while it is picked: only a chance of its own matches its amounts.
+var CHANCE_WHY = {
+    borrowed: 'Its precipitation chance comes from ECMWF and doesn\'t match its amounts, so it brings no '
+        + 'precipitation amount.',
+    coarser: 'Its precipitation chance comes from a coarser model and doesn\'t match its amounts, so it brings no '
+        + 'precipitation amount.',
+    none: 'It has no precipitation chance of its own, so the watch takes ECMWF\'s. That doesn\'t match its amounts, '
+        + 'so it brings no precipitation amount.'
+};
+
+// The Model row's hint for each national model, the picked one's only (hintByValue): where it
+// answers, then where its chance comes from. A model made for one area answers beyond it from a
+// model that covers more (Open-Meteo's seamless models), but for one that answers only inside its
+// area (covers): there the watch takes the default. The worldwide ones say all there is in the list.
+var MODEL_WHY = {};
+openMeteoModels.MODELS.forEach(function (model) {
+    if (model.worldwide) { return; }
+    var area = model.covers
+        ? model.covers.charAt(0).toUpperCase() + model.covers.slice(1) + ' only; elsewhere the watch uses '
+            + openMeteoModels.modelRow(openMeteoModels.DEFAULT).name + '.'
+        : 'Beyond its area it blends into a wider model.';
+    MODEL_WHY[model.id] = area + (CHANCE_WHY[model.chance] ? ' ' + CHANCE_WHY[model.chance] : '');
+});
+
+// Open-Meteo's Model, under the Provider while it is Open-Meteo (open-meteo-models.js; the phone
+// reads it through fetch-options.js openMeteoModel), joined to it without a divider. A model that
+// brings no precipitation amount asks for a source of it while none is picked (the page's
+// weatherAmountPickTail).
+var MODEL_ROW = {
+    type: 'select',
+    messageKey: 'openMeteoModel',
+    label: 'Model',
+    defaultValue: openMeteoModels.DEFAULT,
+    joinPrevious: 'loose',
+    showWhen: {key: 'provider', eq: openMeteoModels.PROVIDER},
+    hintByValue: MODEL_WHY,
+    hintTailFrom: {resolver: 'weatherAmountPickTail'},
+    options: MODEL_OPTIONS
 };
 
 // The Data sources row that opens the Weather dialog. Its second line says where the weather
@@ -81,17 +144,9 @@ var SOURCE_PICKERS = providerReadings.READING_IDS.map(function (id) {
     optionsFrom: {resolver: 'weatherFreeValues'}
 }]);
 
-// The readings the Provider lacks that a screen draws, said under its row: they come from
-// Open-Meteo. A plain note joined to the row, like its hint; textFrom answers '' when none do,
-// and the note is gone.
-var FILL_NOTE = {
-    type: 'staticText',
-    joinPrevious: true,
-    textFrom: {resolver: 'weatherFillNote'}
-};
-
 // The weather calls a day the choices come to (weather-sources-page.js weatherCallsLine): under
-// the Provider in the Weather dialog, and under Update interval at the end of Data sources.
+// the Provider and its Model in the Weather dialog, and under Update interval at the end of Data
+// sources.
 var CALLS_LINE = {
     type: 'staticText',
     joinPrevious: true,
@@ -100,8 +155,9 @@ var CALLS_LINE = {
 
 /**
  * The Weather dialog's sections. The dialog, opened by the Weather row (WEATHER_ROW): the
- * Provider, which serves the forecast, its notes and its key row; then Other sources, the values
- * that come from another provider (block weatherOtherSources, weather-sources-page.js). Every
+ * Provider, which serves the forecast, Open-Meteo's Model, the notes and the key row; then Other
+ * sources, the values that come from another source than the Provider (block weatherOtherSources,
+ * weather-sources-page.js). Every
  * list opens as a sheet over the dialog (engine renderPickSheet).
  * Then the pickers' own section (SOURCE_PICKERS), which has no rows: the list opens them over
  * the dialog. Never opened as a dialog itself (sheetOnly): the values hydrate and serialize with
@@ -133,7 +189,7 @@ function dialogSections(keyRow) {
             // its key dialog: the key field, its Test, the links and any budget guard live there.
             // The missing-key note is the staticText below the calls line.
             options: PROVIDER_OPTIONS
-        }, FILL_NOTE, CALLS_LINE, {
+        }, MODEL_ROW, CALLS_LINE, {
             // The keyed provider's empty key, said where it cannot be missed: an amber note
             // hugging the row, only while the picked provider's key is blank (textFrom answers ''
             // otherwise and the note is gone, divider and all).
@@ -151,5 +207,5 @@ function dialogSections(keyRow) {
 }
 
 module.exports = { TOMORROWIO_CREDIT: TOMORROWIO_CREDIT, PROVIDER_OPTIONS: PROVIDER_OPTIONS, PROVIDER_WHY: PROVIDER_WHY,
-    WEATHER_ROW: WEATHER_ROW, SOURCE_PICKERS: SOURCE_PICKERS, FILL_NOTE: FILL_NOTE, CALLS_LINE: CALLS_LINE,
-    dialogSections: dialogSections };
+    MODEL_OPTIONS: MODEL_OPTIONS, MODEL_WHY: MODEL_WHY, MODEL_ROW: MODEL_ROW, WEATHER_ROW: WEATHER_ROW,
+    SOURCE_PICKERS: SOURCE_PICKERS, CALLS_LINE: CALLS_LINE, dialogSections: dialogSections };

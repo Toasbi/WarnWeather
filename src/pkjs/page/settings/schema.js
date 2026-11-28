@@ -1328,6 +1328,9 @@ function graphDialog() {
         // With the bars on, the scale note (colour) or the B&W legend joins the
         // hint (blocks.js colorNoteHint).
         hintFrom: {resolver: 'colorNoteHint', args: {colorNote: SCALE_NOTE, bwNote: BW_LEGEND}},
+        // Open-Meteo's weather model may bring no precipitation amount: then the bars stay empty
+        // until a source of it is picked (weather-sources-page.js weatherAmountBarsTail).
+        hintTailFrom: {resolver: 'weatherAmountBarsTail', args: {link: tabLink('setup', 'Setup › Data sources')}},
         options: [['Rain', 'rain'], ['Off', 'off']]
     }, {
         type: 'segmented',

@@ -17785,6 +17785,12 @@
                     "bwNote": "The bars don't scale linearly. Their height is split into 5 parts, for rain up to 0.1, 0.5, 2, 10 and 40 mm/h."
                   }
                 },
+                "hintTailFrom": {
+                  "resolver": "weatherAmountBarsTail",
+                  "args": {
+                    "link": "<button type=\"button\" class=\"txt-link\" data-goto-tab=\"setup\">Setup › Data sources</button>"
+                  }
+                },
                 "options": [
                   [
                     "Rain",
@@ -22237,7 +22243,7 @@
                 "hintByValue": {
                   "dwd": "Germany's national weather service, with the most accurate forecasts in Germany and decent ones across Central Europe (ICON model). No API key needed.",
                   "metno": "The service behind yr.no. Best in the Nordics, with a 2.5 km model, and solid worldwide. No API key needed.",
-                  "openmeteo": "Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.",
+                  "openmeteo": "Free, no API key. Uses ECMWF's global model, or the model you pick under Model.",
                   "openweathermap": "A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.",
                   "tomorrowio": "Minute-by-minute forecasts for your exact location, worldwide, from its own machine-learning models and satellites. Needs a free API key. Powered by <a target='_blank' href='https://www.tomorrow.io'>Tomorrow.io</a>.",
                   "wunderground": "A crowd-sourced network of 250,000+ personal weather stations, with many readings close to you. Strongest in the US and Europe. No API key needed.",
@@ -22263,7 +22269,7 @@
                     "Open-Meteo",
                     "openmeteo",
                     {
-                      "desc": "Picks the best national model · no key"
+                      "desc": "ECMWF or a model you pick · no key"
                     }
                   ],
                   [
@@ -22297,11 +22303,165 @@
                 ]
               },
               {
-                "type": "staticText",
-                "joinPrevious": true,
-                "textFrom": {
-                  "resolver": "weatherFillNote"
-                }
+                "type": "select",
+                "messageKey": "openMeteoModel",
+                "label": "Model",
+                "defaultValue": "ecmwf_ifs025",
+                "joinPrevious": "loose",
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "openmeteo"
+                },
+                "hintByValue": {
+                  "geosphere_seamless": "Beyond its area it blends into a wider model. Its precipitation chance comes from ECMWF and doesn't match its amounts, so it brings no precipitation amount.",
+                  "cmc_gem_seamless": "Beyond its area it blends into a wider model. Its precipitation chance comes from a coarser model and doesn't match its amounts, so it brings no precipitation amount.",
+                  "chmi_aladin_seamless": "Central Europe only; elsewhere the watch uses ECMWF IFS. Its precipitation chance comes from ECMWF and doesn't match its amounts, so it brings no precipitation amount.",
+                  "dmi_seamless": "Beyond its area it blends into a wider model. Its precipitation chance comes from ECMWF and doesn't match its amounts, so it brings no precipitation amount.",
+                  "meteofrance_seamless": "Beyond its area it blends into a wider model. It has no precipitation chance of its own, so the watch takes ECMWF's. That doesn't match its amounts, so it brings no precipitation amount.",
+                  "dwd_icon_seamless": "Beyond its area it blends into a wider model. Its precipitation chance comes from a coarser model and doesn't match its amounts, so it brings no precipitation amount.",
+                  "jma_seamless": "Beyond its area it blends into a wider model. It has no precipitation chance of its own, so the watch takes ECMWF's. That doesn't match its amounts, so it brings no precipitation amount.",
+                  "knmi_seamless": "Beyond its area it blends into a wider model. Its precipitation chance comes from ECMWF and doesn't match its amounts, so it brings no precipitation amount.",
+                  "meteoswiss_icon_seamless": "The Alps only; elsewhere the watch uses ECMWF IFS.",
+                  "ukmo_seamless": "Beyond its area it blends into a wider model."
+                },
+                "hintTailFrom": {
+                  "resolver": "weatherAmountPickTail"
+                },
+                "options": [
+                  [
+                    "Worldwide",
+                    "__hdr_worldwide",
+                    {
+                      "disabled": true,
+                      "groupHeader": true
+                    }
+                  ],
+                  [
+                    "ECMWF IFS",
+                    "ecmwf_ifs025",
+                    {
+                      "desc": "Worldwide, 25 km · default",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "ECMWF IFS HRES",
+                    "ecmwf_ifs",
+                    {
+                      "desc": "Worldwide, 9 km",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "NOAA GFS",
+                    "ncep_gfs_global",
+                    {
+                      "desc": "Worldwide, 13 km",
+                      "groupChild": true,
+                      "groupEnd": true
+                    }
+                  ],
+                  [
+                    "National",
+                    "__hdr_national",
+                    {
+                      "disabled": true,
+                      "groupHeader": true
+                    }
+                  ],
+                  [
+                    "GeoSphere C-LAEF",
+                    "geosphere_seamless",
+                    {
+                      "desc": "Austria, 1 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "Environment Canada GEM",
+                    "cmc_gem_seamless",
+                    {
+                      "desc": "Canada, 2.5 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "ČHMÚ ALADIN",
+                    "chmi_aladin_seamless",
+                    {
+                      "desc": "Czechia, 1 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "DMI HARMONIE",
+                    "dmi_seamless",
+                    {
+                      "desc": "Denmark, 2 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "Météo-France AROME",
+                    "meteofrance_seamless",
+                    {
+                      "desc": "France, 1.5 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "DWD ICON",
+                    "dwd_icon_seamless",
+                    {
+                      "desc": "Germany, 2 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "JMA MSM",
+                    "jma_seamless",
+                    {
+                      "desc": "Japan, 5 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "KNMI HARMONIE",
+                    "knmi_seamless",
+                    {
+                      "desc": "Netherlands, 2 km · no precipitation amount",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "MeteoSwiss ICON",
+                    "meteoswiss_icon_seamless",
+                    {
+                      "desc": "Switzerland, 1 km",
+                      "groupChild": true,
+                      "groupEnd": false
+                    }
+                  ],
+                  [
+                    "Met Office UKV",
+                    "ukmo_seamless",
+                    {
+                      "desc": "UK and Ireland, 2 km",
+                      "groupChild": true,
+                      "groupEnd": true
+                    }
+                  ]
+                ]
               },
               {
                 "type": "staticText",
@@ -22430,7 +22590,7 @@
               {
                 "type": "select",
                 "messageKey": "weatherSourceRainChance",
-                "label": "Rain chance",
+                "label": "Precipitation chance",
                 "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "weatherValueSources",
@@ -22442,7 +22602,7 @@
               {
                 "type": "select",
                 "messageKey": "weatherSourceRainAmount",
-                "label": "Rain amount",
+                "label": "Precipitation amount",
                 "defaultValue": "",
                 "optionsFrom": {
                   "resolver": "weatherValueSources",

@@ -1,9 +1,10 @@
 // test/page/weather/weather-sources-page.test.js — where the weather comes from, on the settings
 // page: the Weather row of Setup › Data sources and its second line; the Weather dialog it opens,
-// with the note under the Provider (the readings the watch draws that the Provider has none of,
-// which come from Open-Meteo: the source plan's fills, by the phone's own rules) and the weather
-// calls a day (the plan's count); and the dialog's Other sources list, its pickers and Use
-// another source.
+// with Open-Meteo's Model under the Provider and the weather calls a day (the plan's count); and
+// the dialog's Other sources list: the values picked to another provider, the ones the watch
+// draws that the Provider has none of, which come from Open-Meteo (the source plan's fills, by the
+// phone's own rules), and the precipitation amount a weather model brings none of; its pickers and
+// Use another source; and the graphs' Bars row, which says when the bars stay empty.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,32 +23,56 @@ const ui = require('../../../src/pkjs/config-ui/lib/ui.js');
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 // No slot shows UV (a fresh install's radar bar and Watch bar do) and no alert is placed.
 const NONE = NOTHING_DRAWN;
+// Open-Meteo on ČHMÚ ALADIN, whose chance is ECMWF's: it brings no precipitation amount.
+const ALADIN = { provider: 'openmeteo', openMeteoModel: 'chmi_aladin_seamless' };
 
 /**
  * @param {Object} over Settings over NONE.
- * @returns {string} The note on a basalt.
+ * @returns {Array<string>} The Other sources list's rows on a basalt, as "id kind provider".
  */
-function note(over) { return page.fillNote(Object.assign({}, NONE, over), BASALT); }
+function rows(over) {
+  return page.sourceRows(Object.assign({}, NONE, over), BASALT).map((o) => [o.id, o.kind, o.provider].join(' '));
+}
 
-test('the note names what the watch draws that the provider has none of', () => {
-  assert.equal(note({ provider: 'yandex', secondaryLine: 'cloud', statusForecastMid: 'pressure' }),
-    'Yandex Weather sends no cloud cover or air pressure, so they come from Open-Meteo.');
-  assert.equal(note({ provider: 'yandex', secondaryLine: 'dew', thirdLine: 'cloud', statusForecastMid: 'pressure' }),
-    'Yandex Weather sends no dew point, cloud cover or air pressure, so they come from Open-Meteo.');
-  assert.equal(note({ provider: 'dwd', secondaryLine: 'uv' }), 'DWD sends no UV index, so it comes from Open-Meteo.');
-  assert.equal(note({ provider: 'yandex', statusTopMid: 'wind', windSlotDirection: true }),
-    'Yandex Weather sends no wind direction, so it comes from Open-Meteo.');
+test('the list\'s rows: what the watch draws that the Provider has none of comes from Open-Meteo', () => {
+  assert.deepEqual(rows({ provider: 'yandex', secondaryLine: 'cloud', statusForecastMid: 'pressure' }),
+    ['cloud fill openmeteo', 'pressure fill openmeteo']);
+  assert.deepEqual(rows({ provider: 'yandex', secondaryLine: 'dew', thirdLine: 'cloud', statusForecastMid: 'pressure' }),
+    ['dew fill openmeteo', 'cloud fill openmeteo', 'pressure fill openmeteo'], 'in the pickers\' order');
+  assert.deepEqual(rows({ provider: 'dwd', secondaryLine: 'uv' }), ['uv fill openmeteo']);
+  assert.deepEqual(rows({ provider: 'yandex', statusTopMid: 'wind', windSlotDirection: true }), ['windDir fill openmeteo']);
 });
 
-test('no note while nothing comes from Open-Meteo', () => {
-  assert.equal(note({ provider: 'yandex' }), '', 'nothing it lacks is drawn');
-  assert.equal(note({ provider: 'dwd', secondaryLine: 'cloud' }), '', 'DWD sends cloud cover');
+test('no rows while everything comes from the Provider', () => {
+  assert.deepEqual(rows({ provider: 'yandex' }), [], 'nothing it lacks is drawn');
+  assert.deepEqual(rows({ provider: 'dwd', secondaryLine: 'cloud' }), [], 'DWD sends cloud cover');
   providerFactory.PROVIDER_IDS.filter((id) => providerReadings.READING_IDS.every((r) => providerReadings.serves(id, r)))
     .forEach((id) => {
-      assert.equal(note({ provider: id, secondaryLine: 'uv', thirdLine: 'cloud', statusForecastMid: 'dew' }), '', id);
+      assert.deepEqual(rows({ provider: id, secondaryLine: 'uv', thirdLine: 'cloud', statusForecastMid: 'dew' }), [], id);
     });
-  assert.equal(note({ provider: 'constructor', secondaryLine: 'uv' }), '', 'a stored value the table does not know');
-  assert.equal(page.fillNote(null, BASALT), '');
+  assert.deepEqual(rows({ provider: 'constructor', secondaryLine: 'uv' }), [], 'a stored value the table does not know');
+});
+
+test('a value picked to another provider is its row, the one a fill would bring too', () => {
+  const S = { provider: 'yandex', secondaryLine: 'cloud', statusForecastMid: 'pressure' };
+  assert.deepEqual(rows(Object.assign({ weatherSourceCloud: 'dwd', weatherSourceFeels: 'metno' }, S)),
+    ['feels pick metno', 'cloud pick dwd', 'pressure fill openmeteo']);
+  assert.deepEqual(rows(Object.assign({ weatherSourceCloud: 'tomorrowio' }, S)),
+    ['cloud pick tomorrowio', 'pressure fill openmeteo'], 'a pick without its key keeps its row: it says so');
+});
+
+test('a weather model without a precipitation amount: its row until a source is picked for it', () => {
+  assert.deepEqual(rows(ALADIN), ['rainAmount none '], 'the amount comes from nowhere');
+  assert.deepEqual(rows(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), ['rainAmount pick dwd']);
+  assert.equal(page.missingAmount(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), null);
+  assert.equal(page.missingAmount(ALADIN).name, 'ČHMÚ ALADIN');
+  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global', 'meteoswiss_icon_seamless', 'ukmo_seamless', 'retired_model']
+    .forEach((model) => {
+      assert.deepEqual(rows({ provider: 'openmeteo', openMeteoModel: model }), [], model + ': its own amount');
+    });
+  assert.deepEqual(rows({ provider: 'dwd', openMeteoModel: 'chmi_aladin_seamless' }), [],
+    'a model only while Open-Meteo is the Provider');
+  assert.equal(page.missingAmount(null), null);
 });
 
 const setupTab = schema.tabs.find((t) => t.id === 'setup');
@@ -76,7 +101,7 @@ test('the pickers: one per reading in the table\'s order, then Use another sourc
   const keys = providerReadings.READING_IDS.map(sourcePlan.choiceKey);
   assert.deepEqual(pickers.items.map((i) => i.messageKey), keys.concat([OTHER_FOR]));
   assert.deepEqual(pickers.items.slice(0, -1).map((r) => r.label), ['Current temperature', 'Current feels-like',
-    'Weather condition', 'Temperature', 'Feels-like', 'Dew point', 'Rain chance', 'Rain amount', 'Wind speed',
+    'Weather condition', 'Temperature', 'Feels-like', 'Dew point', 'Precipitation chance', 'Precipitation amount', 'Wind speed',
     'Wind gusts', 'Wind direction', 'UV index', 'Cloud cover', 'Air pressure']);
   pickers.items.slice(0, -1).forEach((row, i) => {
     assert.equal(row.type, 'select');
@@ -116,6 +141,16 @@ test('a value\'s picker: where it comes from without a pick, then the others tha
   assert.equal(uv.filter((o) => o[0] === 'Open-Meteo').length, 1, 'so Open-Meteo is offered once');
 });
 
+test('the precipitation amount\'s picker with a weather model without one: none without a pick', () => {
+  const amount = page.valueSources(ALADIN, BASALT, { reading: 'rainAmount' });
+  assert.deepEqual(amount[0], ['None', '', { desc: 'ČHMÚ ALADIN brings none' }], 'no fill brings it');
+  assert.deepEqual(amount.slice(1).map((o) => o[1]), ['dwd', 'metno', 'openweathermap', 'tomorrowio', 'wunderground',
+    'yandex'], 'every other provider, Open-Meteo itself not');
+  assert.deepEqual(page.valueSources({ provider: 'openmeteo', openMeteoModel: 'ukmo_seamless' }, BASALT,
+    { reading: 'rainAmount' })[0], ['Open-Meteo', '', { desc: 'Provider' }], 'the Met Office brings its own');
+  assert.deepEqual(page.valueSources(ALADIN, BASALT, { reading: 'rainChance' })[0], ['Open-Meteo', '', { desc: 'Provider' }]);
+});
+
 test('the readings picked to another provider: a known provider that sends it, not the Provider', () => {
   assert.deepEqual(page.readingPicks({ provider: 'dwd' }), []);
   assert.deepEqual(page.readingPicks({ provider: 'dwd', weatherSourceFeels: 'metno', weatherSourceRainAmount: 'openmeteo',
@@ -131,15 +166,27 @@ test('the Weather row\'s line: the Provider, then the values from other sources,
   assert.equal(at({}), 'DWD');
   assert.equal(at({ weatherSourceFeels: 'metno' }), 'DWD, feels-like from Met.no');
   assert.equal(at({ weatherSourceFeels: 'metno', weatherSourceRainAmount: 'openmeteo' }),
-    'DWD, feels-like from Met.no and rain amount from Open-Meteo');
+    'DWD, feels-like from Met.no and precipitation amount from Open-Meteo');
   assert.equal(at({ weatherSourceFeels: 'metno', weatherSourceDew: 'metno', weatherSourceRainAmount: 'metno' }),
-    'DWD, feels-like, dew point and rain amount from Met.no', 'three from one provider');
+    'DWD, feels-like, dew point and precipitation amount from Met.no', 'three from one provider');
   assert.equal(at({ weatherSourceFeels: 'metno', weatherSourceDew: 'metno', weatherSourceRainAmount: 'openmeteo' }),
     'DWD, 3 values from Met.no and Open-Meteo', 'three from two: counted');
   assert.equal(at({ weatherSourceCurrentTemp: 'metno', weatherSourceFeels: 'metno', weatherSourceDew: 'metno',
     weatherSourceUv: 'metno' }), 'DWD, 4 values from Met.no');
   assert.equal(line({ provider: 'constructor' }, BASALT), '', 'a stored value the table does not know');
   assert.equal(line(null, BASALT), '');
+});
+
+test('the Weather row\'s line names a weather model, and in the accent a precipitation amount it goes without', () => {
+  const line = global.PConf.hintResolvers.get('weatherSourcesSummary');
+  assert.equal(line({ provider: 'openmeteo' }, BASALT), 'Open-Meteo', 'the default: no name');
+  assert.equal(line({ provider: 'openmeteo', openMeteoModel: 'ukmo_seamless' }, BASALT), 'Open-Meteo (Met Office UKV)');
+  assert.equal(line(ALADIN, BASALT), 'Open-Meteo (ČHMÚ ALADIN), <span class="txt-acc">no precipitation amount</span>');
+  assert.equal(line(Object.assign({ weatherSourceFeels: 'metno' }, ALADIN), BASALT),
+    'Open-Meteo (ČHMÚ ALADIN), feels-like from Met.no, <span class="txt-acc">no precipitation amount</span>');
+  assert.equal(line(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN), BASALT),
+    'Open-Meteo (ČHMÚ ALADIN), precipitation amount from DWD');
+  assert.equal(line({ provider: 'dwd', openMeteoModel: 'chmi_aladin_seamless' }, BASALT), 'DWD');
 });
 
 test('the Weather row says a missing or refused key, as the tab\'s dot does', () => {
@@ -151,7 +198,7 @@ test('the Weather row says a missing or refused key, as the tab\'s dot does', ()
 });
 
 test('Use another source\'s list: the values that still come from the Provider, Right now then Forecast', () => {
-  const free = page.freeValues({ provider: 'dwd' });
+  const free = page.freeValues(Object.assign({ provider: 'dwd' }, NONE), BASALT);
   const child = (id, end) => ({ groupChild: true, groupEnd: end, next: sourcePlan.choiceKey(id) });
   assert.deepEqual(free.slice(0, 4), [['Right now', '', { groupHeader: true }],
     ['Current temperature', 'currentTemp', child('currentTemp', false)],
@@ -160,19 +207,15 @@ test('Use another source\'s list: the values that still come from the Provider, 
   assert.deepEqual(free[4], ['Forecast', '', { groupHeader: true }]);
   assert.equal(free.length, 2 + providerReadings.READING_IDS.length);
   assert.deepEqual(free[free.length - 1], ['Air pressure', 'pressure', child('pressure', true)]);
-  const taken = page.freeValues({ provider: 'dwd', weatherSourceCurrentTemp: 'metno', weatherSourceCurrentFeels: 'metno',
-    weatherSourceCondition: 'metno', weatherSourcePressure: 'metno' });
+  const taken = page.freeValues(Object.assign({ provider: 'dwd', weatherSourceCurrentTemp: 'metno',
+    weatherSourceCurrentFeels: 'metno', weatherSourceCondition: 'metno', weatherSourcePressure: 'metno' }, NONE), BASALT);
   assert.equal(taken[0][0], 'Forecast', 'no Right now while all three are picked');
   assert.equal(taken.some((o) => o[1] === 'pressure'), false);
   assert.deepEqual(taken[taken.length - 1], ['Cloud cover', 'cloud', child('cloud', true)]);
-});
-
-test('the note names only what comes from the Provider', () => {
-  const S = { provider: 'yandex', secondaryLine: 'cloud', statusForecastMid: 'pressure' };
-  assert.equal(note(S), 'Yandex Weather sends no cloud cover or air pressure, so they come from Open-Meteo.');
-  assert.equal(note(Object.assign({}, S, { weatherSourceCloud: 'dwd' })),
-    'Yandex Weather sends no air pressure, so it comes from Open-Meteo.', 'DWD brings the cloud cover');
-  assert.equal(note(Object.assign({}, S, { weatherSourceCloud: 'dwd', weatherSourcePressure: 'metno' })), '');
+  const ids = (S) => page.freeValues(Object.assign({}, NONE, S), BASALT).map((o) => o[1]).filter(Boolean);
+  assert.equal(ids({ provider: 'dwd', secondaryLine: 'uv' }).indexOf('uv'), -1, 'UV has its row: Open-Meteo\'s');
+  assert.equal(ids(ALADIN).indexOf('rainAmount'), -1, 'the amount has its row');
+  assert.ok(ids({ provider: 'dwd' }).indexOf('uv') !== -1, 'UV undrawn has no row: it may be picked');
 });
 
 test('every provider and reading has its words', () => {
@@ -181,21 +224,64 @@ test('every provider and reading has its words', () => {
   providerReadings.READING_IDS.forEach((id) => { assert.ok(words.WORDS[id], id); });
 });
 
-test('the note and the calls line sit under the Provider, ahead of its key note, and show in the dialog', () => {
-  const at = dialog.items.findIndex((i) => i.textFrom && i.textFrom.resolver === 'weatherFillNote');
+test('the Model and the calls line sit under the Provider, ahead of its key note', () => {
+  const at = dialog.items.findIndex((i) => i.messageKey === 'openMeteoModel');
   assert.equal(dialog.items[at - 1].messageKey, 'provider');
   assert.equal(dialog.items[at + 1].textFrom.resolver, 'weatherCallsLine');
   assert.equal(dialog.items[at + 2].textFrom.resolver, 'keyMissingNote');
-  assert.equal(dialog.items[at].joinPrevious, true);
+  assert.equal(dialog.items[at].joinPrevious, 'loose', 'no divider between the Provider and its Model');
   assert.equal(dialog.items[at + 1].joinPrevious, true);
-  const p = bootGeneratedPage(Object.assign({ provider: 'yandex', yandexApiKey: 'k', secondaryLine: 'cloud' }, NONE),
-    'basalt');
-  p.clickTab('setup');
-  assert.equal(p.scroll.innerHTML.indexOf('Yandex Weather sends no cloud cover'), -1, 'not on the card');
-  p.openEditSheet('weatherSources');
-  const body = p.modal.innerHTML;
-  assert.ok(body.indexOf('Yandex Weather sends no cloud cover, so it comes from Open-Meteo.') !== -1, 'in the dialog');
-  assert.ok(body.indexOf('Open-Meteo.') < body.indexOf('weather calls a day'), 'the note, then the calls line');
+  assert.equal(dialog.items.some((i) => i.textFrom && i.textFrom.resolver === 'weatherFillNote'), false,
+    'what the Provider lacks is said by its rows under Other sources');
+});
+
+test('the Model row: Open-Meteo\'s only, the worldwide models, then the national ones, the default first', () => {
+  const sourcesSchema = require('../../../src/pkjs/page/weather/weather-sources-schema.js');
+  const openMeteoModels = require('../../../src/pkjs/weather/domain/open-meteo-models.js');
+  const model = dialog.items.find((i) => i.messageKey === 'openMeteoModel');
+  assert.equal(model.type, 'select');
+  assert.equal(model.label, 'Model');
+  assert.equal(model.defaultValue, 'ecmwf_ifs025');
+  assert.deepEqual(model.showWhen, { key: 'provider', eq: 'openmeteo' });
+  assert.equal(model.uiOnly, undefined, 'stored: the phone reads it (fetch-options.js openMeteoModel)');
+  const opts = model.options;
+  assert.deepEqual(opts.filter((o) => o[2].groupHeader).map((o) => o[0]), ['Worldwide', 'National']);
+  assert.deepEqual(opts.filter((o) => !o[2].groupHeader).map((o) => o[1]), openMeteoModels.IDS, 'every model, in the table\'s order');
+  assert.deepEqual(opts[1], ['ECMWF IFS', 'ecmwf_ifs025', { desc: 'Worldwide, 25 km · default', groupChild: true,
+    groupEnd: false }]);
+  assert.deepEqual(opts[3], ['NOAA GFS', 'ncep_gfs_global', { desc: 'Worldwide, 13 km', groupChild: true, groupEnd: true }]);
+  assert.deepEqual(opts.find((o) => o[1] === 'geosphere_seamless')[2].desc, 'Austria, 1 km · no precipitation amount');
+  assert.deepEqual(opts.find((o) => o[1] === 'ukmo_seamless'), ['Met Office UKV', 'ukmo_seamless',
+    { desc: 'UK and Ireland, 2 km', groupChild: true, groupEnd: true }]);
+  opts.filter((o) => !o[2].groupHeader).forEach((o) => {
+    assert.equal(/no precipitation amount/.test(o[2].desc), !openMeteoModels.bringsAmount(o[1]), o[1]);
+  });
+  assert.equal(model.hintByValue.chmi_aladin_seamless, 'Central Europe only; elsewhere the watch uses ECMWF IFS. '
+    + 'Its precipitation chance comes from ECMWF and doesn\'t match its amounts, so it brings no precipitation amount.');
+  assert.equal(model.hintByValue.meteoswiss_icon_seamless, 'The Alps only; elsewhere the watch uses ECMWF IFS.');
+  assert.equal(model.hintByValue.ukmo_seamless, 'Beyond its area it blends into a wider model.');
+  assert.match(model.hintByValue.jma_seamless, /no precipitation chance of its own, so the watch takes ECMWF's/);
+  assert.match(model.hintByValue.dwd_icon_seamless, /comes from a coarser model/);
+  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global'].forEach((id) => assert.equal(model.hintByValue[id], undefined, id));
+  assert.deepEqual(model.hintTailFrom, { resolver: 'weatherAmountPickTail' });
+  assert.equal(sourcesSchema.PROVIDER_WHY.openmeteo,
+    'Free, no API key. Uses ECMWF\'s global model, or the model you pick under Model.');
+  assert.deepEqual(sourcesSchema.PROVIDER_OPTIONS.find((o) => o[1] === 'openmeteo')[2],
+    { desc: 'ECMWF or a model you pick · no key' });
+});
+
+test('the Model row in the dialog: under Open-Meteo, asking for a source of an amount its model goes without', () => {
+  const open = (S) => weatherDialog(S).modal.innerHTML;
+  assert.equal(open({}).indexOf('data-select="openMeteoModel"'), -1, 'DWD: no Model');
+  const body = open(ALADIN);
+  assert.ok(body.indexOf('data-select="openMeteoModel"') !== -1);
+  assert.ok(body.indexOf('so it brings no precipitation amount. Pick a source for it below.') !== -1, 'the hint asks');
+  assert.ok(body.indexOf('data-select="openMeteoModel"') < body.indexOf('weather calls a day'), 'then the calls line');
+  assert.equal(open(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)).indexOf('Pick a source for it below.'), -1,
+    'not once one is picked');
+  assert.equal(open({ provider: 'openmeteo' }).indexOf('Pick a source for it below.'), -1, 'ECMWF IFS brings its own');
+  assert.equal(page.amountPickTail(ALADIN), 'Pick a source for it below.');
+  assert.equal(page.amountPickTail({ provider: 'openmeteo', openMeteoModel: 'ukmo_seamless' }), '');
 });
 
 // --- the Other sources list in the Weather dialog ---------------------------------------------
@@ -230,6 +316,29 @@ test('the list: Use another source alone while everything comes from the Provide
     'a list\'s New row, as Your status bars draws its own: the plus beside its words, at its end what comes from DWD');
   assert.equal(body.indexOf('aria-label="Other sources"'), -1, 'no rows, so no list of them');
   assert.equal(body.indexOf('data-action="weatherPickRemove"'), -1, 'nothing to give back');
+});
+
+test('the list: a value the Provider sends none of names Open-Meteo, and has no ×', () => {
+  const body = weatherDialog({ secondaryLine: 'uv' }).modal.innerHTML;
+  assert.ok(body.indexOf(ui.listRow({ name: 'UV index', line: 'Open-Meteo · DWD sends none',
+    at: { 'data-select': 'weatherSourceUv', 'aria-haspopup': 'listbox' } })) !== -1, 'it opens its picker');
+  assert.equal(body.indexOf('data-action="weatherPickRemove"'), -1, 'nothing to give back');
+  assert.ok(body.indexOf(useAnother('13 from DWD')) !== -1, 'and it does not come from DWD');
+});
+
+test('the list: the amount a weather model goes without, in the accent, until a source is picked for it', () => {
+  const body = weatherDialog(ALADIN).modal.innerHTML;
+  assert.ok(body.indexOf(ui.listRow({ name: 'Precipitation amount', line: 'None with ČHMÚ ALADIN · pick a source',
+    at: { 'data-select': 'weatherSourceRainAmount', 'aria-haspopup': 'listbox' }, accent: true })) !== -1);
+  assert.ok(body.indexOf('<span class="ui-d txt-acc">None with ČHMÚ ALADIN · pick a source</span>') !== -1);
+  assert.ok(body.indexOf(useAnother('13 from Open-Meteo')) !== -1);
+  const picked = weatherDialog(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)).modal.innerHTML;
+  assert.ok(picked.indexOf(ui.listRow({ name: 'Precipitation amount', line: 'DWD',
+    at: { 'data-select': 'weatherSourceRainAmount', 'aria-haspopup': 'listbox' },
+    x: { 'data-action': 'weatherPickRemove', 'data-action-arg': 'rainAmount',
+      'aria-label': 'Precipitation amount back to Open-Meteo' } })) !== -1, 'a pick, with its ×');
+  assert.equal(picked.indexOf('txt-acc'), -1);
+  assert.ok(picked.indexOf(useAnother('13 from Open-Meteo')) !== -1);
 });
 
 test('the list: a row for each value from another provider, which opens its picker, and its ×', () => {
@@ -283,7 +392,7 @@ test('the ×: the value comes from the Provider again; the dialog\'s × puts eve
   p.openModalSelect('weatherSourceRainAmount');
   p.pickOption('weatherSourceRainAmount', 'metno');
   p.doneDialog();
-  assert.ok(p.scroll.innerHTML.indexOf('<div class="hint">DWD, feels-like and rain amount from Met.no</div>') !== -1,
+  assert.ok(p.scroll.innerHTML.indexOf('<div class="hint">DWD, feels-like and precipitation amount from Met.no</div>') !== -1,
     'Done keeps it, and the Weather row says it');
 });
 
@@ -332,6 +441,15 @@ test('the calls line counts each update\'s requests, and the UV fill every few h
   assert.equal(calls({ provider: 'constructor' }), '', 'a stored value the table does not know');
 });
 
+test('the calls line counts what a weather model asks', () => {
+  assert.equal(calls({ provider: 'openmeteo', openMeteoModel: 'jma_seamless' }), 'About 288 weather calls a day.',
+    'JMA has no chance: ECMWF\'s is asked beside it');
+  assert.equal(calls(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)),
+    'About 384 weather calls a day: 192 to Open-Meteo and 192 to DWD.', 'DWD for the amount');
+  assert.equal(calls({ provider: 'dwd', openMeteoModel: 'jma_seamless' }), 'About 192 weather calls a day.',
+    'a model only while Open-Meteo is the Provider');
+});
+
 test('the calls line counts every provider a reading in use comes from', () => {
   assert.equal(calls({ provider: 'metno', weatherSourceTemperature: 'dwd',
     weatherSourceRainAmount: 'openmeteo' }), 'About 480 weather calls a day: 96 to Met.no, 192 to DWD and 192 to Open-Meteo.',
@@ -366,4 +484,25 @@ test('the ×: focus goes to the × now in its place, else the one before it, els
   assert.equal(S.weatherSourceDew, '');
   assert.deepEqual(remove('wind', S), { focus: [del('feels'), add] }, 'the row before, when it was the last');
   assert.deepEqual(remove('feels', S), { focus: [add] }, 'Use another source, when none is left');
+});
+
+// --- the graphs' Bars row ---------------------------------------------------------------------
+
+test('the Bars row says the bars stay empty while the weather model goes without a precipitation amount', () => {
+  const tail = (S) => page.amountBarsTail(S, BASALT, { messageKey: 'barSource', link: '<L>' });
+  assert.equal(tail(Object.assign({ barSource: 'rain' }, ALADIN)),
+    'ČHMÚ ALADIN brings no precipitation amount, so there are no bars. Pick a source for it in <L>.');
+  assert.equal(tail(Object.assign({ barSource: 'off' }, ALADIN)), '', 'no bars asked for');
+  assert.equal(tail(Object.assign({ barSource: 'rain', weatherSourceRainAmount: 'dwd' }, ALADIN)), '', 'DWD\'s amount');
+  assert.equal(tail({ barSource: 'rain', provider: 'openmeteo' }), '', 'ECMWF IFS brings its own');
+  const bars = schema.tabs.find((t) => t.id === 'graphs').sections.flatMap((s) => s.items || [])
+    .find((i) => i.messageKey === 'barSource');
+  assert.equal(bars.hintTailFrom.resolver, 'weatherAmountBarsTail');
+  assert.equal(bars.hintTailFrom.args.link,
+    '<button type="button" class="txt-link" data-goto-tab="setup">Setup › Data sources</button>');
+  const p = bootGeneratedPage(Object.assign({ barSource: 'rain' }, NONE, ALADIN), 'basalt');
+  p.openTabSheet('graphs', 'graph');
+  assert.ok(p.modal.innerHTML.indexOf('ČHMÚ ALADIN brings no precipitation amount, so there are no bars. Pick a source '
+    + 'for it in <button type="button" class="txt-link" data-goto-tab="setup">Setup › Data sources</button>.') !== -1,
+  'in the graph\'s dialog, after the row\'s own hint');
 });
