@@ -321,6 +321,20 @@ test('settings that need no refetch stay OUT of the render signature', () => {
   });
 });
 
+// The moon's settings are baked from the clock and the place alone, so the status re-bake at
+// every settings close brings them (render-signature.js's exception): no fetch.
+test('the Moon phase slot\'s and the Moon phase item\'s settings stay OUT of the render signature', () => {
+  const placed = { statusTopMid: 'moon', statusTopOnDemandRightItems: 'moon' };
+  const base = renderSignature(placed);
+  [{ moonSlotLook: 'text' }, { moonSlotLook: 'icon' }, { moonSlotShows: 'lit' }, { moonSlotShows: 'full' },
+    { moonSlotName: 'full' }, { moonItemShow: 'always' }, { moonItemShow: 'both' }, { moonItemDays: 'tomorrow' },
+    { moonItemNextDayMark: 'star' }].forEach((over) => {
+    assert.equal(renderSignature(Object.assign({}, placed, over)), base, JSON.stringify(over) + ' must not force a fetch');
+  });
+  // Putting the slot on a bar still does, as any slot's code does.
+  assert.notEqual(renderSignature({ statusTopMid: 'city' }), renderSignature({ statusTopMid: 'moon' }));
+});
+
 // The premise behind keeping the theme and the area fill out: the weather bake reads
 // neither. Should a bake ever start reading one again, this goes red and the key has
 // to rejoin the signature (the force-fetch rule above).

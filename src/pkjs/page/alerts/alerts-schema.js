@@ -204,11 +204,11 @@ function rainNotPlacedNote() {
         showWhen: {all: [{key: 'radarEnabled', ne: false}, {not: onDemandPlacedWhen('rain')}]}
     };
 }
-// A metric alert's Days, named once: the sheet's row offers them and the card row's hint
-// (alerts-page.js alertLevelsHint) prints a pick other than the default by its label. The
-// values are the contract's (status-thresholds.js ALERT_DAYS — pinned by a test);
+// The Days of an item that looks ahead, named once: a metric alert's sheet and the Moon phase's
+// offer them, and the card rows' hints (alerts-page.js alertLevelsHint, onDemandMoonText) print
+// a pick by its label. The values are the contract's (on-demand.js DAYS, pinned by a test);
 // 'tomorrow' is "Today + tomorrow", never tomorrow alone: today always wins.
-var ALERT_DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
+var DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
 /**
  * A metric alert's contract code, found by its key stem (status-thresholds.js
  * ALERT_KINDS), so the sheet reads its defaults through the contract's own readers.
@@ -224,17 +224,16 @@ function alertCodeOf(keyStem) {
     throw new Error('alertSheet: no contract alert for ' + keyStem);
 }
 /**
- * "This alert looks ahead to tomorrow" as a showWhen predicate that resolves exactly
- * as status-thresholds.js alertDays does. With "Today + tomorrow" the default,
- * anything but a stored 'today' — absent or unknown — reads as looking ahead; were
- * 'today' the default, only a stored 'tomorrow' would. The default is read from the
- * contract, not restated here.
- * @param {string} daysKey The alert's Days key, e.g. 'alertUvDays'.
+ * "This item looks ahead to tomorrow" as a showWhen predicate that resolves exactly as the
+ * contract reads its Days (status-thresholds.js alertDays, on-demand.js moonItem): with
+ * "Today + tomorrow" the default, anything but a stored 'today' (absent or unknown) reads as
+ * looking ahead; with 'today' the default, only a stored 'tomorrow' does.
+ * @param {string} daysKey The item's Days key, e.g. 'alertUvDays'.
+ * @param {string} defaultDays What the contract reads an absent or unknown Days as.
  * @returns {Object} The showWhen predicate.
  */
-function alertLooksAheadWhen(daysKey) {
-    return STATUS_THRESHOLDS.ALERT_DAYS_DEFAULT === 'tomorrow'
-        ? {key: daysKey, ne: 'today'} : {key: daysKey, eq: 'tomorrow'};
+function looksAheadWhen(daysKey, defaultDays) {
+    return defaultDays === 'tomorrow' ? {key: daysKey, ne: 'today'} : {key: daysKey, eq: 'tomorrow'};
 }
 /**
  * One metric alert's sheet (sheetId alert<Stem>), opened from its row in the Alerts tab's
@@ -299,7 +298,7 @@ function alertSheet(kind) {
             messageKey: key + 'Days',
             label: 'Days',
             defaultValue: STATUS_THRESHOLDS.alertDays(null, code),
-            options: ALERT_DAYS_OPTIONS,
+            options: DAYS_OPTIONS,
             more: true,
             hintByValue: {
                 tomorrow: (kind.daySubject ? 'If today’s level stays below your warn level but tomorrow’s reaches it'
@@ -321,7 +320,7 @@ function alertSheet(kind) {
             },
             joinPrevious: true,
             more: true,
-            showWhen: alertLooksAheadWhen(key + 'Days')
+            showWhen: looksAheadWhen(key + 'Days', STATUS_THRESHOLDS.ALERT_DAYS_DEFAULT)
         }], levelLook(kind.keyStem, ALERT_VOICE, null, undefined, false, true))
     };
 }
@@ -661,17 +660,16 @@ function placementSheet(sheetId, title, code, intro) {
 // contract's (on-demand.js MOON_SHOWS, pinned by a test).
 var MOON_SHOW_OPTIONS = [['Always', 'always'], ['At full moon', 'full'], ['At new moon', 'new'],
     ['At new and full moon', 'both']];
-// Its Days: 'tomorrow' is "Today + tomorrow", never tomorrow alone (on-demand.js MOON_DAYS):
-// today's moon always wins (moon-item.js shownMoon).
-var MOON_DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
 /**
  * The Moon phase item's sheet (sheetId odMoon), opened from its row in the Alerts tab's Sky
  * card: its Shows on grid and note, then When: the days it shows on (Show), whether the day
  * before a full or new moon shows that moon (Days) and the mark it then carries on its left
  * (Tomorrow's mark, the watch's STATUS_ALERT_MARK_* codes, drawn left of the moon whatever the
  * mark: status_on_demand.c paint_item). The phone works the moon out from the date and bakes it
- * into the levels word (moon-item.js shownMoon), so these ride renderSignature, not the Clay
- * message. Each default is the contract's (on-demand.js DEFAULTS).
+ * into the levels word (moon-item.js shownMoon), so a change reaches the watch in the status
+ * re-bake when the page closes (status-rebake.js resendStatus), with no fetch: these stay out of
+ * renderSignature and off the Clay message. Each default is the contract's (on-demand.js
+ * DEFAULTS).
  * @returns {Object} Schema section (sheetOnly).
  */
 function moonSheet() {
@@ -695,7 +693,7 @@ function moonSheet() {
             messageKey: 'moonItemDays',
             label: 'Days',
             defaultValue: ON_DEMAND.DEFAULTS.moonItemDays,
-            options: MOON_DAYS_OPTIONS,
+            options: DAYS_OPTIONS,
             hintByValue: {
                 tomorrow: 'On the day before a full or new moon, the icon shows that moon instead, with the mark set '
                     + 'in Tomorrow’s mark on its left.'
@@ -711,7 +709,7 @@ function moonSheet() {
                 none: 'Tomorrow’s moon shows without a mark.'
             },
             joinPrevious: true,
-            showWhen: {key: 'moonItemDays', eq: 'tomorrow'}
+            showWhen: looksAheadWhen('moonItemDays', ON_DEMAND.DEFAULTS.moonItemDays)
         }])
     };
 }
@@ -764,12 +762,12 @@ function onDemandCardItems() {
             {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}}, null)
     ].concat(ALERT_KINDS.map(function (k) {
         return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon,
-            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
+            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: DAYS_OPTIONS}},
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }), [
         {type: 'subheader', text: 'Sky'},
         onDemandSheetRow('odMoon', 'Moon phase', 'moon',
-            {resolver: 'onDemandMoonText', args: {shows: MOON_SHOW_OPTIONS, days: MOON_DAYS_OPTIONS}}, null)
+            {resolver: 'onDemandMoonText', args: {shows: MOON_SHOW_OPTIONS, days: DAYS_OPTIONS}}, null)
     ]);
 }
 // The About alerts card's intro (the owner's wording, 2026-10-01; its last sentence the
@@ -839,9 +837,8 @@ function sheetSections() {
 
 module.exports = {
     ALERT_KINDS: ALERT_KINDS,
-    ALERT_DAYS_OPTIONS: ALERT_DAYS_OPTIONS,
+    DAYS_OPTIONS: DAYS_OPTIONS,
     MOON_SHOW_OPTIONS: MOON_SHOW_OPTIONS,
-    MOON_DAYS_OPTIONS: MOON_DAYS_OPTIONS,
     BT_ICON_OPTIONS: BT_ICON_OPTIONS,
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,

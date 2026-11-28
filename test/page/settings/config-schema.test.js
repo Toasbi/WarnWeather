@@ -2444,10 +2444,11 @@ test('rainCountdownHorizon: one row, the Rain sheet\'s Time window, ahead of its
 });
 
 // Each metric alert's Days and tomorrow mark against the contract the bake reads them
-// through (status-thresholds.js alertDays / alertNextDayMark): the same values, the
-// same default for an absent key, and a mark row that shows exactly while the bake
-// would read the mark — whatever is stored, an unknown Days included.
-test('the alert Days and tomorrow-mark rows agree with the contract', () => {
+// through (status-thresholds.js alertDays / alertNextDayMark), and the Moon phase item's
+// (on-demand.js moonItem): the same values, the same default for an absent key, and a mark
+// row that shows exactly while the bake would read the mark — whatever is stored, an
+// unknown Days included.
+test('the Days and tomorrow-mark rows agree with the contract, each alert\'s and the Moon phase\'s', () => {
   const TH = require('../../../src/pkjs/alerts/domain/status-thresholds.js');
   const pair = require('../../../src/pkjs/status-bars/domain/status-pair.js');
   TH.ALERT_KINDS.forEach((a) => {
@@ -2466,6 +2467,18 @@ test('the alert Days and tomorrow-mark rows agree with the contract', () => {
       assert.equal(showWhen.isVisible(mark, s), TH.alertDays(s, a.code) === 'tomorrow',
         a.key + ' Days ' + String(v) + ': the mark row shows exactly while the alert looks ahead');
     });
+  });
+  const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
+  const moonDays = byKey('moonItemDays');
+  const moonMark = byKey('moonItemNextDayMark');
+  assert.deepEqual(moonDays.options.map((o) => o[1]), OD.DAYS, 'the Moon phase: the contract\'s Days');
+  assert.equal(moonDays.defaultValue, OD.moonItem({}).days, 'the Moon phase: the Days an absent key reads as');
+  assert.deepEqual(moonMark.options.map((o) => o[1]), OD.NEXT_DAY_MARKS, 'the Moon phase: the contract\'s marks');
+  assert.equal(moonMark.defaultValue, OD.moonItem({}).mark, 'the Moon phase: the mark an absent key reads as');
+  [undefined, 'today', 'tomorrow', 'bogus', 3].forEach((v) => {
+    const s = { moonItemDays: v };
+    assert.equal(showWhen.isVisible(moonMark, s), OD.moonItem(s).days === 'tomorrow',
+      'the Moon phase\'s Days ' + String(v) + ': the mark row shows exactly while the item looks ahead');
   });
 });
 

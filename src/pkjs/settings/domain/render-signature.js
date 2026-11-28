@@ -7,6 +7,12 @@
 // settings save and forces a refetch on change. Extracted from index.js so the rule
 // is testable against real module resolution (index.js registers Pebble listeners at
 // load and exports nothing).
+//
+// The one exception: a setting the phone bakes from the clock and the place alone, with
+// nothing a fetch brings, stays out. The status re-bake on every settings close
+// (channel-scheduler.js onConfigClosed, status-rebake.js resendStatus) brings it to the
+// watch without a fetch. Those are the Moon phase slot's Look, Shows and Name and the
+// On demand Moon phase item's Show, Days and Tomorrow's mark (sky-slots.js, moon-item.js).
 
 var statusCatalog = require('../../status-bars/domain/status-line-catalog.js');
 var statusThresholds = require('../../alerts/domain/status-thresholds.js');

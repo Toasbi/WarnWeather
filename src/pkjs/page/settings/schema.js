@@ -75,7 +75,7 @@ var ON_DEMAND = require('../../status-bars/domain/on-demand.js');
 var SCREENS = require('../../layout/domain/screens.js');
 var NAME_MAX = SCREENS.NAME_MAX;
 var ALERT_KINDS = alertsSchema.ALERT_KINDS;
-var ALERT_DAYS_OPTIONS = alertsSchema.ALERT_DAYS_OPTIONS;
+var DAYS_OPTIONS = alertsSchema.DAYS_OPTIONS;
 var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
@@ -665,7 +665,7 @@ function alertLevelsRow(keyStem) {
         sheetId: 'alert' + keyStem,
         label: 'Alert levels and colors',
         navNote: 'Alerts',
-        hintFrom: {resolver: 'alertLevelsHint', args: {keyStem: keyStem, days: ALERT_DAYS_OPTIONS, levelsOnly: true}},
+        hintFrom: {resolver: 'alertLevelsHint', args: {keyStem: keyStem, days: DAYS_OPTIONS, levelsOnly: true}},
         showWhen: ON_DEMAND_WHEN
     };
 }

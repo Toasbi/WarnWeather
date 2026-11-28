@@ -126,7 +126,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{keyStem: string, days: Array<Array<string>>}} args The row's kind key
-     *     stem, e.g. 'Wind', and the Days options (alerts-schema.js ALERT_DAYS_OPTIONS).
+     *     stem, e.g. 'Wind', and the Days options (alerts-schema.js DAYS_OPTIONS).
      * @returns {?string} The hint, or null where the levels do not exist (aplite,
      *     a stem with no metric alert) — the engine then falls back to the static hint.
      */
@@ -402,7 +402,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{shows: Array<Array<string>>, days: Array<Array<string>>}} args The sheet's option
-     *     lists (alerts-schema.js MOON_SHOW_OPTIONS, MOON_DAYS_OPTIONS).
+     *     lists (alerts-schema.js MOON_SHOW_OPTIONS, DAYS_OPTIONS).
      * @returns {string} The hint.
      */
     function onDemandMoonText(S, env, args) {

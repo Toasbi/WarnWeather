@@ -509,11 +509,11 @@
     { code: 'wind', key: 'Wind' }
   ];
 
-  // alert<Key>Days: 'today' judges only what is left of today; 'tomorrow' ("Today +
-  // tomorrow") also lets tomorrow's peak raise the alert once nothing left today
-  // reaches warn (status-wire.js bakedAlerts' rule). Absent or unknown reads as the
-  // default.
-  var ALERT_DAYS = ['today', 'tomorrow'];
+  // alert<Key>Days, on-demand.js DAYS, which the Moon phase item's Days shares: 'today'
+  // judges only what is left of today; 'tomorrow' ("Today + tomorrow") also lets tomorrow's
+  // peak raise the alert once nothing left today reaches warn (status-wire.js bakedAlerts'
+  // rule). Absent or unknown reads as the default.
+  var ALERT_DAYS = onDemand.DAYS;
   var ALERT_DAYS_DEFAULT = 'tomorrow';
 
   // alert<Key>NextDayMark: how a tomorrow entry marks its day, on-demand.js NEXT_DAY_MARKS,

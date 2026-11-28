@@ -42,12 +42,12 @@ test('DEFAULTS: the Watch bar carries the defaults, every other bar is empty', (
 test('moonItem: Show, Days and Tomorrow\'s mark, each read the one way', () => {
   assert.deepEqual(OD.moonItem({}), { show: 'full', days: 'today', mark: 'raquo' }, 'the defaults');
   assert.deepEqual(OD.moonItem(null), { show: 'full', days: 'today', mark: 'raquo' });
-  OD.MOON_SHOWS.forEach((show) => OD.MOON_DAYS.forEach((days) => OD.NEXT_DAY_MARKS.forEach((mark) => {
+  OD.MOON_SHOWS.forEach((show) => OD.DAYS.forEach((days) => OD.NEXT_DAY_MARKS.forEach((mark) => {
     assert.deepEqual(OD.moonItem({ moonItemShow: show, moonItemDays: days, moonItemNextDayMark: mark }),
       { show, days, mark });
   })));
   assert.deepEqual(OD.MOON_SHOWS, ['always', 'full', 'new', 'both']);
-  assert.deepEqual(OD.MOON_DAYS, ['today', 'tomorrow']);
+  assert.deepEqual(OD.DAYS, ['today', 'tomorrow']);
   assert.deepEqual(OD.moonItem({ moonItemShow: 'half', moonItemDays: 7, moonItemNextDayMark: '»' }),
     { show: 'full', days: 'today', mark: 'raquo' }, 'an unknown value reads the default');
 });

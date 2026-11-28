@@ -151,12 +151,25 @@
   var NEXT_DAY_MARKS = ['raquo', 'gt', 'plus', 'star', 'none'];
   var NEXT_DAY_MARK_DEFAULT = 'raquo';
 
+  // The Days of an item that looks ahead (the metric alerts' alert<Key>Days, status-thresholds.js
+  // ALERT_DAYS, and the Moon phase's moonItemDays): 'today' judges the day alone; 'tomorrow'
+  // ("Today + tomorrow", never tomorrow alone: today always wins) also shows what tomorrow
+  // brings, with the mark.
+  var DAYS = ['today', 'tomorrow'];
+
   // The Moon phase item's Show (moonItemShow): the days it shows on, tonight's moon on every
-  // day ('always'), or only on the day of a full moon, of a new moon, or of either. Its Days
-  // (moonItemDays): 'today' judges the day alone; 'tomorrow' ("Today + tomorrow") also shows
-  // on the day before such a moon, that moon with the mark (moon-item.js shownMoon).
+  // day ('always'), or only on the day of a full moon, of a new moon, or of either. With Days
+  // 'tomorrow' it also shows on the day before such a moon, that moon with the mark
+  // (moon-item.js shownMoon).
   var MOON_SHOWS = ['always', 'full', 'new', 'both'];
-  var MOON_DAYS = ['today', 'tomorrow'];
+
+  // The settings read as one of a list of choices (read): anything else reads the default.
+  var CHOICES = {
+    batteryLowDisplay: BATTERY_DISPLAYS,
+    moonItemShow: MOON_SHOWS,
+    moonItemDays: DAYS,
+    moonItemNextDayMark: NEXT_DAY_MARKS
+  };
 
   /**
    * @param {*} code Candidate item code.
@@ -210,12 +223,9 @@
     if (key === 'batteryLowLevel') {
       return (typeof v === 'string' || typeof v === 'number') ? v : DEFAULTS[key];
     }
-    if (key === 'batteryLowDisplay') {
-      return BATTERY_DISPLAYS.indexOf(v) >= 0 ? v : DEFAULTS[key];
+    if (Object.prototype.hasOwnProperty.call(CHOICES, key)) {
+      return CHOICES[key].indexOf(v) >= 0 ? v : DEFAULTS[key];
     }
-    if (key === 'moonItemShow') { return MOON_SHOWS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
-    if (key === 'moonItemDays') { return MOON_DAYS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
-    if (key === 'moonItemNextDayMark') { return NEXT_DAY_MARKS.indexOf(v) >= 0 ? v : DEFAULTS[key]; }
     return v === undefined ? DEFAULTS[key] : v;
   }
 
@@ -403,8 +413,8 @@
   /**
    * The Moon phase item's settings, each read the one way (read).
    * @param {Object} S Settings blob.
-   * @returns {{show: string, days: string, mark: string}} a MOON_SHOWS value, a MOON_DAYS value
-   *   and a NEXT_DAY_MARKS key
+   * @returns {{show: string, days: string, mark: string}} a MOON_SHOWS value, a DAYS value and
+   *   a NEXT_DAY_MARKS key
    */
   function moonItem(S) {
     return { show: read(S, 'moonItemShow'), days: read(S, 'moonItemDays'),
@@ -467,8 +477,8 @@
     BATTERY_LEVEL_DEFAULT: BATTERY_LEVEL_DEFAULT,
     NEXT_DAY_MARKS: NEXT_DAY_MARKS,
     NEXT_DAY_MARK_DEFAULT: NEXT_DAY_MARK_DEFAULT,
+    DAYS: DAYS,
     MOON_SHOWS: MOON_SHOWS,
-    MOON_DAYS: MOON_DAYS,
     itemIndex: itemIndex,
     prefixOf: prefixOf,
     itemsKey: itemsKey,

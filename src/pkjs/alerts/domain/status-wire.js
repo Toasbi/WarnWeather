@@ -325,17 +325,18 @@ function weatherLevelShift(k) {
 
 // Bits 10-15 of the levels value: the On demand Moon phase item's moon for the day
 // (moon-item.js shownMoon; on_demand.h od_moon_of): 0 for none, else 1 + its picture + 8 x its
-// day, 0 for today's moon, else tomorrow's mark code (markCode). In the levels word because a
+// day (dayCode). In the levels word because a
 // tuple of its own (8 B) would leave a full weather message on the 640 B watches under the
 // 10 B headroom floor (test/repo/inbox-size.test.js).
 var MOON_SHIFT = 10;
 
 /**
- * @param {?{picture: number, mark: ?string}} shown moon-item.js shownMoon's moon, or null.
+ * @param {?{picture: number, mark: ?string}} [shown] moon-item.js shownMoon's moon; absent or
+ *     null for none.
  * @returns {number} Its 6 bits of the levels value: 0..48.
  */
 function moonBits(shown) {
-  return shown ? 1 + shown.picture + 8 * (shown.mark === null ? 0 : markCode(shown.mark)) : 0;
+  return shown ? 1 + shown.picture + 8 * dayCode(shown.mark) : 0;
 }
 
 /**
@@ -374,7 +375,7 @@ function levelOf(code, value, settings) {
  * @returns {number[]} two-element byte array (2 wire bytes)
  */
 function packWeatherLevels(payload, settings, moon) {
-  var packed = moonBits(moon || null) << MOON_SHIFT;
+  var packed = moonBits(moon) << MOON_SHIFT;
   for (var k = 0; k < KINDS.length; k++) {
     if (!isWeatherKind(KINDS[k])) { continue; }
     var code = KINDS[k].code;
@@ -491,13 +492,17 @@ var ALERT_LEN_MAX = 7;
 var ALERT_ENTRIES_MAX_BYTES = 20;
 
 /**
- * A tomorrow's day code: its mark's code, the ALERT_NEXT_DAY_MARKS index + 1 (alert_set.h
- * STATUS_ALERT_MARK_*); 0 is today's.
- * @param {string} mark An ALERT_NEXT_DAY_MARKS key; anything else codes as the default.
- * @returns {number} 1..ALERT_NEXT_DAY_MARKS.length
+ * A day's code, as an alert entry's header and the levels word's moon carry it: 0 for today's,
+ * else tomorrow's mark's code, the ALERT_NEXT_DAY_MARKS index + 1 (alert_set.h
+ * STATUS_ALERT_MARK_*).
+ * @param {?string} mark Tomorrow's ALERT_NEXT_DAY_MARKS key, anything else coding as the
+ *     default; null for today's.
+ * @returns {number} 0..ALERT_NEXT_DAY_MARKS.length
  */
-function markCode(mark) {
-  var idx = ALERT_NEXT_DAY_MARKS.indexOf(mark);
+function dayCode(mark) {
+  var idx;
+  if (mark === null) { return 0; }
+  idx = ALERT_NEXT_DAY_MARKS.indexOf(mark);
   return 1 + (idx < 0 ? ALERT_NEXT_DAY_MARKS.indexOf(ALERT_NEXT_DAY_MARK_DEFAULT) : idx);
 }
 
@@ -510,8 +515,7 @@ function markCode(mark) {
  * @returns {number} the byte
  */
 function alertHeader(kind, level, mark) {
-  var day = mark === null ? 0 : markCode(mark);
-  return ALERT_HEADER | kind | (level >= 2 ? ALERT_DANGER : 0) | (day << ALERT_DAY_SHIFT);
+  return ALERT_HEADER | kind | (level >= 2 ? ALERT_DANGER : 0) | (dayCode(mark) << ALERT_DAY_SHIFT);
 }
 
 /**
