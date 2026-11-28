@@ -8,7 +8,7 @@ require('../../../src/pkjs/config-ui/lib/schema-walk.js');
 require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../../../src/pkjs/config-ui/lib/engine.js');
-const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js').ICONS;
 
 // The six weather glyphs, the Alert settings card's four System info glyphs and the Sky
 // card's moon (also the Status slots tab's read-only Alerts rows, by on-demand.js ITEMS
@@ -133,9 +133,9 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
 
 test('the Moon phase\'s pictures are the phases in slot-text.js MOON_PHASES\' order, the lit part filled', () => {
   const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
-  const { moonOutline } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
-  assert.deepEqual(slotText.MOON_PHASES.map((p) => moonOutline(p.icon)), MOON_PHASES.map((id) => ICONS[id]));
-  assert.equal(moonOutline(require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS.MOON_TEXT),
+  const { outlineOfIcon } = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+  assert.deepEqual(slotText.MOON_PHASES.map((p) => outlineOfIcon(p.icon)), MOON_PHASES.map((id) => ICONS[id]));
+  assert.equal(outlineOfIcon(require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS.MOON_TEXT),
     null, 'the Text look\'s id has no picture');
   // As the watch draws them: the new moon a dotted ring, the full moon filled, the others the
   // outline with the lit part filled.
@@ -179,15 +179,21 @@ test('each slot item names the drawing the watch pictures draw at a bar\'s box, 
     'the sun arrow is drawn in code');
   const battery = preview.barSlots({ statusTopRight: 'battery' }, basalt, 'top')[2];
   assert.deepEqual([battery.code, battery.drawing], ['battery', null], 'and the battery');
-  // Every slot with a glyph of the watch's drawings names a drawing the page has.
+  // Every slot item with a glyph names a drawing the page has (its catalog icon's, pixel-icon.js
+  // keyOfIcon), but the battery and the sun arrow, drawn in code.
   const STATUS = require('../../../src/pkjs/settings/status-pixels.generated.js');
-  Object.keys(preview.SLOT_DRAWINGS).forEach((code) => {
-    assert.ok(STATUS.icons[preview.SLOT_DRAWINGS[code]], code + ': ' + preview.SLOT_DRAWINGS[code] + ' is a drawing');
-  });
-  // The moon is the Alerts item's outline: the Moon phase slot's drawing follows its Look.
-  assert.deepEqual(Object.keys(preview.SLOT_DRAWINGS).sort(),
-    IDS.filter((id) => ['battery', 'snooze', 'sun', 'moon'].indexOf(id) === -1).concat(['condition']).sort(),
-    'every glyph but the three drawn in code and the moon');
+  const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
+  // Every slot there is: the Pebble Time 2, with a Pebble app that reads the phone's battery.
+  const emery = Object.assign(require('../../../src/pkjs/config-ui/lib/platform.js').computeEnv({ platform: 'emery' }),
+    { phoneBattery: true });
+  const drawn = IDS.filter((code) => catalog.byCode(code)).map((code) => {
+    const slot = preview.barSlots({ statusTopMid: code }, emery, 'top')[1];
+    assert.equal(slot.code, code, code + ': the watch offers it');
+    assert.ok(slot.drawing === null || STATUS.icons[slot.drawing], code + ': ' + slot.drawing + ' is a drawing');
+    return slot.drawing ? code : null;
+  }).filter(Boolean);
+  assert.deepEqual(drawn, IDS.filter((code) => catalog.byCode(code) && ['battery', 'sun'].indexOf(code) === -1),
+    'every slot glyph but the two drawn in code');
   const sky = (extra) => preview.barSlots(Object.assign({ statusTopLeft: 'twilight', statusTopMid: 'moon',
     statusTopRight: 'dayLength' }, extra), basalt, 'top').map((c) => c.drawing);
   assert.deepEqual(sky({}), ['DUSK', 'MOON_WAN_GIB', 'SUN'], 'the dusk, tonight\'s moon and the Clear sun');

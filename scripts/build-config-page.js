@@ -197,29 +197,28 @@ var APP_FILES = [
   // theirs run.
   path.join(ROOT, 'src/pkjs/settings/status-pixels.generated.js'),
   path.join(ROOT, 'src/pkjs/page/weather/pixel-icon.js'),
-  // The plugin values WarnWeather knows (window.KnownValues, a leaf): their names. The Plugin
-  // value slot's dialog (window.PluginValuePage), its rows' lists and texts, binds it, and
-  // PluginValues, StatusLineCatalog and PixelIcon, while its body runs, and preview-status-bars.js
-  // binds that.
-  path.join(ROOT, 'src/pkjs/status-bars/domain/known-values.js'),
-  path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
-  // The Status bars tab's pinned preview (binds PixelIcon and PluginValuePage while its body
-  // runs; reads StatusLineCatalog, OnDemand, VIEW_CYCLE, PreviewSvg and the slot-text chain above
-  // at render). blocks.js binds it as it loads: the Moon phase dialog's list of every phase.
-  path.join(ROOT, 'src/pkjs/page/status-bars/preview-status-bars.js'),
-  // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
-  path.join(ROOT, 'src/pkjs/page/health/preview-health.js'),
-  // The status-slot row glyphs, registered into PConf.icons at IIFE time. It reads
-  // nothing but PConf.icons (engine.js, a lib file, already ran), so any slot after
-  // the lib files would do; it sits with the other page-only registrars, ahead of
-  // blocks.js, and is only looked up at render time. Dropping it throws nothing —
-  // an unregistered icon id just prints no glyph — so
-  // test/page/settings/config-page-bundle.test.js pins its register() calls into the page.
-  // The weather condition icons (window.ConditionIcons): status-slot-icons.js reads them while
-  // its body runs; blocks.js's conditionList and the rain alert's preview draw with them at
+  // The status-slot row glyphs (window.StatusSlotIcons), registered into PConf.icons at IIFE
+  // time (engine.js, a lib file, already ran), with each icon id's outline (outlineOfIcon):
+  // plugin-value-page.js, preview-status-bars.js and blocks.js bind it while their bodies run.
+  // Dropping it would leave the rows bare and throw nothing (an unregistered icon id just prints
+  // no glyph), so test/page/settings/config-page-bundle.test.js pins its register() calls into the
+  // page. The weather condition icons (window.ConditionIcons): status-slot-icons.js reads them
+  // while its body runs; blocks.js's conditionList and the rain alert's preview draw with them at
   // render time.
   path.join(ROOT, 'src/pkjs/page/weather/condition-icons.js'),
   path.join(ROOT, 'src/pkjs/page/status-bars/status-slot-icons.js'),
+  // The plugin values WarnWeather knows (window.KnownValues, a leaf): their names. The Plugin
+  // value slot's dialog (window.PluginValuePage), its rows' lists and texts, binds it, and
+  // PluginValues, StatusLineCatalog and StatusSlotIcons, while its body runs, and
+  // preview-status-bars.js binds that.
+  path.join(ROOT, 'src/pkjs/status-bars/domain/known-values.js'),
+  path.join(ROOT, 'src/pkjs/page/status-bars/plugin-value-page.js'),
+  // The Status bars tab's pinned preview (binds PixelIcon, StatusSlotIcons and PluginValuePage
+  // while its body runs; reads StatusLineCatalog, OnDemand, VIEW_CYCLE, PreviewSvg and the
+  // slot-text chain above at render).
+  path.join(ROOT, 'src/pkjs/page/status-bars/preview-status-bars.js'),
+  // The Graphs tab's Health pane preview (reads PreviewSvg and ResolveInk).
+  path.join(ROOT, 'src/pkjs/page/health/preview-health.js'),
   // The tab bar's glyphs (tab.icon), into the same registry.
   path.join(ROOT, 'src/pkjs/page/settings/tab-icons.js'),
   // The Watchface tab's watch: every view as the watch draws it, from the layout's seats

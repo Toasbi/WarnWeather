@@ -12,7 +12,7 @@ require('../../../src/pkjs/config-ui/lib/show-when.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 // The page's outlines, registered in PConf.icons as the page registers them (the engine is loaded).
-const OUTLINES = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+const OUTLINES = require('../../../src/pkjs/page/status-bars/status-slot-icons.js').ICONS;
 const page = require('../../../src/pkjs/page/status-bars/plugin-value-page.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
@@ -1024,26 +1024,28 @@ test('an Icon option\'s picture: the page\'s outline of each form it takes, on b
 
 test('the bars\' pictures draw the icon picked, in the form the value read last takes', (t) => {
   clock(t, NOW);
+  // The drawing the watch pictures draw in the Watch bar's middle (preview-status-bars.js barSlots).
+  const drawingOf = (S) => barSlots(S, BASALT, 'top', true, new Date(NOW))[1].drawing;
   userData(t, { plugins: WITH_WIFI, pluginValues: handed(kept({ state: true, short: 'Home' }, { source: WIFI_KEY })) });
   const MID = catalog.pluginValueKeys('statusTopMid');
   const S = Object.assign({ statusTopMid: 'pluginValue' },
     pickIn({ plugin: PHONE, id: 'phone/phone_state/wifi', look: 'both', icon: 'wifi' }, 'statusTopMid'));
-  assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI', 'on');
+  assert.equal(drawingOf(S), 'WIFI', 'on');
   const slot = barSlots(S, BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([slot.code, slot.text, slot.drawing], ['pluginValue', 'Home', 'WIFI'], 'the watch pictures\' drawing');
   assert.equal(slot.icon, OUTLINES.wifi, 'the Status bars tab\'s glyph: its outline');
   global.INJECTED_USERDATA.pluginValues = handed(kept({ state: false, short: 'Home' }, { source: WIFI_KEY }));
-  assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'off');
+  assert.equal(drawingOf(S), 'WIFI_OFF', 'off');
   assert.equal(barSlots(S, BASALT, 'top', true, new Date(NOW))[1].icon, OUTLINES.wifiOff, 'its outline off');
   global.INJECTED_USERDATA.pluginValues = handed(kept({ state: true }, { source: WIFI_KEY, at: NOW - 3 * HOUR }));
-  assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'too old to show: off, as the watch shows it');
+  assert.equal(drawingOf(S), 'WIFI_OFF', 'too old to show: off, as the watch shows it');
   global.INJECTED_USERDATA = { plugins: WITH_WIFI };
-  assert.equal(page.barDrawing(S, 'statusTopMid'), 'WIFI_OFF', 'none read');
+  assert.equal(drawingOf(S), 'WIFI_OFF', 'none read');
   const none = barSlots(Object.assign({}, S, { [MID.look]: 'icon' }), BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([none.text, none.drawing], ['--', 'WIFI_OFF'], 'the Icon look with none read: -- beside it');
-  assert.equal(page.barDrawing(Object.assign({}, S, { [MID.icon]: 'plug' }), 'statusTopMid'), 'PLUG');
+  assert.equal(drawingOf(Object.assign({}, S, { [MID.icon]: 'plug' })), 'PLUG');
   const text = Object.assign({}, S, { [MID.look]: 'text' });
-  assert.equal(page.barDrawing(text, 'statusTopMid'), null);
+  assert.equal(drawingOf(text), null);
   global.INJECTED_USERDATA.pluginValues = handed(kept({ state: true, short: 'Home' }, { source: WIFI_KEY }));
   const bare = barSlots(text, BASALT, 'top', true, new Date(NOW))[1];
   assert.deepEqual([bare.text, bare.icon, bare.drawing], ['Home', null, null], 'the Text look: the value alone');

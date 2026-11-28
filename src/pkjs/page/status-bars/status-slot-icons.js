@@ -20,8 +20,8 @@
 //   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)
 //   quiet     -> STATUS_QUIET.pdc   (a muted speaker, struck through)
 //   snooze    -> snooze_draw        (two Z's, the Battery saver hours' glyph)
-//   moon      -> Tabler's moon      (a crescent: the Moon phase item, whose watch drawing
-//                                    is the phase of the day, STATUS_ICON_MOON_*)
+//   moon      -> condition-icons.js' moon (Tabler's crescent: the Moon phase item, whose
+//                                    watch drawing is the phase of the day, STATUS_ICON_MOON_*)
 // and the rest of the slot items the watch draws a glyph for, so the Status bars tab's
 // preview shows every one of them. The pictures of the watch (preview-watch.js) draw the
 // watch's own drawings instead (pixel-icon.js), at each bar's box and seat. These
@@ -65,6 +65,11 @@
 // Page-only on purpose: status-line-catalog.js also ships in the watch-runtime
 // PKJS bundle and schema.js travels as JSON, so the SVG strings live here and the
 // schema only names an id.
+//
+// Dual-context: required under Node, window.StatusSlotIcons on the page (scripts/build-config-page.js
+// APP_FILES: after status-line-catalog.js and condition-icons.js, which it binds while its body
+// runs, ahead of plugin-value-page.js, preview-status-bars.js and blocks.js, which bind it while
+// theirs run).
 /* global PConf */
 (function () {
     'use strict';
@@ -89,6 +94,9 @@
     // time).
     var CONDITION = (typeof require !== 'undefined') ? require('../weather/condition-icons.js')
         : window.ConditionIcons;
+    // The status icons' ids (status-line-catalog.js ICONS), as a bake packs them.
+    var STATUS_ICONS = ((typeof require !== 'undefined') ? require('../../status-bars/domain/status-line-catalog.js')
+        : window.StatusLineCatalog).ICONS;
 
     // The Moon phase's pictures: the moon's outline, and its lit part filled.
     var MOON_RIM = '<circle cx="12" cy="12" r="8.5"/>';
@@ -143,8 +151,7 @@
         snooze: svg24(OUTLINE,
             '<path d="M4 12h6l-6 8h6"/>'
             + '<path d="M14 4h6l-6 8h6"/>'),
-        moon: svg24(OUTLINE,
-            '<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>'),
+        moon: CONDITION.svg('MOON'),
         // The slot glyphs the watch draws from its PDCs (see the header): their own
         // polylines, so a slot in the preview shows the picture the watch puts there.
         temp: svg24(OUTLINE,
@@ -197,7 +204,7 @@
         // icon too).
         condition: CONDITION.svg('SUN_CLOUD'),
         // The sun and moon slots (see the header): the next dusk, the Clear sun, and the moon's
-        // eight phases (preview-status-bars.js MOON_OUTLINES names each one's status icon).
+        // eight phases (OUTLINE_OF_ICON names each one's status icon).
         twilight: svg24(OUTLINE,
             '<path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/>'
             + '<path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m16 6-4 4-4-4"/>'
@@ -247,6 +254,29 @@
             + 'S14.3 21.2 15.9 21.2S18.2 18.8 19.8 18.8S21.2 19.4 22 20.4"/>')
     };
 
+    // The outline of each status icon a slot draws by the id its bake packs, by the icon's name
+    // (status-line-catalog.js ICONS): the Moon phase's phases (slot-text.js moonIcon) and the Plugin
+    // value's forms (plugin-values.js iconId), whose Bluetooth on, Phone and Calendar are the slots'
+    // own. The same by the id, as the bake packs it.
+    var OUTLINE_NAMES = {MOON_NEW: 'moonNew', MOON_WAX_CRES: 'moonWaxCres', MOON_FIRST_QTR: 'moonFirstQtr',
+        MOON_WAX_GIB: 'moonWaxGib', MOON_FULL: 'moonFull', MOON_WAN_GIB: 'moonWanGib', MOON_LAST_QTR: 'moonLastQtr',
+        MOON_WAN_CRES: 'moonWanCres', PV_SWITCH: 'switchOn', PV_SWITCH_OFF: 'switchOff', PV_WIFI: 'wifi',
+        PV_WIFI_OFF: 'wifiOff', PV_BT: 'bluetooth', PV_BT_OFF: 'bluetoothOff', PV_PLUG: 'plug', PV_PHONE: 'phoneBattery',
+        PV_CALENDAR: 'countdown', PV_TIDE: 'tide'};
+    var OUTLINE_OF_ICON = {};
+    Object.keys(OUTLINE_NAMES).forEach(function (name) { OUTLINE_OF_ICON[STATUS_ICONS[name]] = OUTLINE_NAMES[name]; });
+
+    /**
+     * The page's outline of a status icon a slot draws by the id its bake packs (OUTLINE_OF_ICON):
+     * the Moon phase slot's and the Plugin value's.
+     * @param {number} id A status icon id (status-line-catalog.js ICONS).
+     * @returns {?string} Its <svg>; null for an id with none here (a text-only look's).
+     */
+    function outlineOfIcon(id) {
+        var key = OUTLINE_OF_ICON[id];
+        return key ? ICONS[key] : null;
+    }
+
     // Register into the engine's icon registry when it is there: always on the page
     // (engine.js is a lib file, concatenated ahead of every app file), and under Node
     // only once a test has loaded the engine — a bare require just exports the map.
@@ -295,7 +325,7 @@
         P.icons.register('moonWanCres', ICONS.moonWanCres);
     }
 
-    if (typeof module !== 'undefined' && module.exports) {
-        module.exports = ICONS;
-    }
+    var api = {ICONS: ICONS, outlineOfIcon: outlineOfIcon};
+    if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+    if (typeof window !== 'undefined') { window.StatusSlotIcons = api; }
 })();

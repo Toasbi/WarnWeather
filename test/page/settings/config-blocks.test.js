@@ -2040,7 +2040,7 @@ test('the list of every condition has a row per condition, read from condition.j
 // draws each phase's picture from the new moon on, as the north sees it.
 test('the list of every phase has a row per phase, its picture, name and short name', () => {
   const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
-  const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+  const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js').ICONS;
   const html = PConf.hintResolvers.get('moonPhaseList')({}, {});
   const rows = html.split('<tr style="border-top').slice(1);
   assert.equal(rows.length, 8, 'a row each');

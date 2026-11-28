@@ -765,7 +765,7 @@ test('status-slot-icons.js reaches the generated page and registers every glyph'
       'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');
   });
   // And what it registers is what the module exports (the map the tests read).
-  const icons = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+  const icons = require('../../../src/pkjs/page/status-bars/status-slot-icons.js').ICONS;
   assert.deepEqual(Object.keys(icons).sort(), IDS.slice().sort());
   // The weather icons read window.ConditionIcons while its IIFE runs: it has to be on the page
   // first, or the page throws at boot on a real phone.
@@ -915,25 +915,28 @@ test('where the weather comes from: each module is bundled ahead of the ones tha
   });
 });
 
-// plugin-value-page.js binds PluginValues, StatusLineCatalog and PixelIcon while its body runs
-// (PixelIcon binds StatusPixels and StatusLineCatalog while its own does), and
-// preview-status-bars.js binds window.PluginValuePage and PixelIcon while its own does, and
-// blocks.js binds window.PreviewStatusBars (the Moon phase's list of every phase): out of order, or
-// missing, the Status bars tab throws on a real phone while every Node test passes through
-// require(). The phone's own parts stay off the page, whose URL every byte rides.
+// plugin-value-page.js binds PluginValues, StatusLineCatalog and StatusSlotIcons while its body
+// runs (StatusSlotIcons binds StatusLineCatalog and ConditionIcons while its own does), and
+// preview-status-bars.js binds window.PluginValuePage, StatusSlotIcons and PixelIcon while its own
+// does (PixelIcon binds StatusPixels and StatusLineCatalog), and blocks.js binds StatusSlotIcons
+// (the Moon phase's list of every phase): out of order, or missing, the Status bars tab throws on
+// a real phone while every Node test passes through require(). The phone's own parts stay off the
+// page, whose URL every byte rides.
 test('the Plugin value slot\'s rules and dialog reach the page ahead of the Status bars preview', () => {
   const appFiles = require('../../../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith('/' + suffix));
   const order = ['status-bars/domain/status-line-catalog.js', 'status-bars/domain/slot-text.js',
     'status-bars/domain/plugin-values.js', 'settings/status-pixels.generated.js', 'page/weather/pixel-icon.js',
+    'page/weather/condition-icons.js', 'page/status-bars/status-slot-icons.js',
     'page/status-bars/plugin-value-page.js', 'page/status-bars/preview-status-bars.js'];
   order.forEach((file) => assert.notEqual(idx(file), -1, file + ' is not in APP_FILES at all'));
   order.slice(1).forEach((file, i) => assert.ok(idx(order[i]) < idx(file), order[i] + ' must precede ' + file));
   // blocks.js binds window.PluginValues as it loads too: the Edit button's badge reads the Look.
   assert.ok(idx('status-bars/domain/plugin-values.js') < idx('page/settings/blocks.js'),
     'plugin-values.js must precede blocks.js');
-  assert.ok(idx('page/status-bars/preview-status-bars.js') < idx('page/settings/blocks.js'),
-    'preview-status-bars.js must precede blocks.js');
+  assert.ok(idx('page/status-bars/status-slot-icons.js') < idx('page/settings/blocks.js'),
+    'status-slot-icons.js must precede blocks.js');
+  assert.ok(page().indexOf(code('window.StatusSlotIcons = api')) !== -1, 'the page carries the outlines\' api');
   assert.ok(page().indexOf(code('window.PreviewStatusBars = api')) !== -1, 'the page carries the preview\'s api');
   [code('window.PluginValues = api'), code('window.PluginValuePage = api'), "register('pluginValuePlugins'",
     "register('pluginValueIds'", "register('pluginValuePluginHint'", "register('pluginValueIdHint'",

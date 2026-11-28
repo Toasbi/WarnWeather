@@ -60,10 +60,10 @@ if (typeof require !== 'undefined') {
     // file), whose Icon look badges no bold either.
     var pluginValues = (typeof require !== 'undefined')
         ? require('../../status-bars/domain/plugin-values.js') : window.PluginValues;
-    // The Moon phase's pictures (preview-status-bars.js, concatenated ahead of this file), which
-    // its dialog's list of every phase draws.
-    var statusBarsPreview = (typeof require !== 'undefined')
-        ? require('../status-bars/preview-status-bars.js') : window.PreviewStatusBars;
+    // The Moon phase's pictures (status-slot-icons.js outlineOfIcon, concatenated ahead of this
+    // file), which its dialog's list of every phase draws.
+    var slotIcons = (typeof require !== 'undefined')
+        ? require('../status-bars/status-slot-icons.js') : window.StatusSlotIcons;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
     // the same module the watch's wire is packed from, so the row badges below preview
     // exactly what the graph draws. Same dual-context rule as the preview blocks:
@@ -1125,6 +1125,28 @@ if (typeof require !== 'undefined') {
     }
 
     /**
+     * A dialog's list of every one of a slot's pictures, one row each: its icons, its full name and
+     * the short form the slot switches to where it is short of room (conditionList, moonPhaseList).
+     * @param {Array<{icons: string, full: string, short: string}>} rows Each row's icons and full
+     *     name (HTML) and its short form.
+     * @returns {string} HTML.
+     */
+    function namesTable(rows) {
+        var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+            + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
+            + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
+        rows.forEach(function (r) {
+            html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
+                + '<td style="' + cell + '"><span style="display:inline-flex;gap:6px;align-items:center;">'
+                + r.icons + '</span></td>'
+                + '<td style="' + cell + '">' + r.full + '</td>'
+                + '<td style="' + cell + 'font-weight:600;letter-spacing:.02em;">' + r['short'] + '</td></tr>';
+        });
+        return html + '</table>';
+    }
+
+    /**
      * The weather condition slot dialog's list of every condition (its staticText's textFrom):
      * its icon (the night's beside the day's where it differs), the full name and
      * the short form the slot switches to, one row each (conditionRows).
@@ -1133,46 +1155,27 @@ if (typeof require !== 'undefined') {
      * @returns {string} HTML.
      */
     function conditionList(S, env) {
-        var rows = conditionRows();
-        var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
-        var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
-            + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
-            + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
-        rows.forEach(function (r) {
-            var icons = r.icons.map(function (k) { return conditionIcons.svg(k, 24); }).join('');
-            html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
-                + '<td style="' + cell + '"><span style="display:inline-flex;gap:6px;align-items:center;">'
-                + icons + '</span></td>'
-                + '<td style="' + cell + '">' + r.full + (r.night ? ' <span style="opacity:.7;">(night)</span>' : '')
-                + '</td><td style="' + cell + 'font-weight:600;letter-spacing:.02em;">' + r.short + '</td></tr>';
-        });
-        return html + '</table>';
+        return namesTable(conditionRows().map(function (r) {
+            return {icons: r.icons.map(function (k) { return conditionIcons.svg(k, 24); }).join(''),
+                full: r.full + (r.night ? ' <span style="opacity:.7;">(night)</span>' : ''), 'short': r['short']};
+        }));
     }
     PConf.hintResolvers.register('conditionList', conditionList);
 
     /**
      * The Moon phase slot dialog's list of every phase (its staticText's textFrom), laid out like
-     * the weather condition's (conditionList): its picture as the north sees it
-     * (preview-status-bars.js moonOutline), its name and the short form, one row each, in the
+     * the weather condition's (namesTable): its picture as the north sees it
+     * (status-slot-icons.js outlineOfIcon), its name and the short form, one row each, in the
      * moon's order from the new moon (slot-text.js MOON_PHASES).
      * @param {Object} S Live settings state (unused).
      * @param {Object} env Platform env (unused).
      * @returns {string} HTML.
      */
     function moonPhaseList(S, env) {
-        var cell = 'padding:5px 10px 5px 0;vertical-align:middle;';
-        var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
-            + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
-            + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
-        slotText.MOON_PHASES.forEach(function (names) {
-            var icon = (statusBarsPreview.moonOutline(names.icon) || '')
-                .replace('<svg ', '<svg width="24" height="24" aria-hidden="true" ');
-            html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
-                + '<td style="' + cell + '"><span style="display:inline-flex;align-items:center;">' + icon + '</span></td>'
-                + '<td style="' + cell + '">' + names.full + '</td>'
-                + '<td style="' + cell + 'font-weight:600;letter-spacing:.02em;">' + names['short'] + '</td></tr>';
-        });
-        return html + '</table>';
+        return namesTable(slotText.MOON_PHASES.map(function (p) {
+            return {icons: (slotIcons.outlineOfIcon(p.icon) || '')
+                .replace('<svg ', '<svg width="24" height="24" aria-hidden="true" '), full: p.full, 'short': p['short']};
+        }));
     }
     PConf.hintResolvers.register('moonPhaseList', moonPhaseList);
 

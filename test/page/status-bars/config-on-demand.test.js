@@ -21,7 +21,7 @@ require('../../../src/pkjs/lib/color.js');
 require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 // After the engine: the glyphs register into PConf.icons only once it is there.
-const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js');
+const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js').ICONS;
 const onbuild = require('../../../src/pkjs/page/settings/onbuild.js');
 const PC = global.PConf;
 

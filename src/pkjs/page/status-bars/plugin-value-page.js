@@ -34,13 +34,13 @@
 // the user (pluginPicked, valueOptions).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
-// page (scripts/build-config-page.js APP_FILES, after plugin-values.js and pixel-icon.js, which it
-// binds while its body runs; window.PluginValuePage). userData is the page global
+// page (scripts/build-config-page.js APP_FILES, after plugin-values.js and status-slot-icons.js,
+// which it binds while its body runs; window.PluginValuePage). userData is the page global
 // INJECTED_USERDATA, read at call time (Node tests set global.INJECTED_USERDATA). The time since
 // the read is the Weather tab's (weather-tab-readouts.js agoText), read at call time too: that
-// file loads later. So are the icons' outlines, which the Icon row's pictures and the Status bars
-// tab's rows draw (status-slot-icons.js, OUTLINE_NAMES); the bars' pictures of the watch draw the
-// watch's own drawings of them (pixel-icon.js, barDrawing).
+// file loads later. The Icon row's pictures draw the icons' outlines (status-slot-icons.js
+// outlineOfIcon), as the Status bars tab's rows do; the bars' pictures of the watch draw the
+// watch's own drawings of them (preview-status-bars.js, from barIcon).
 //
 // The icons that turn on and off with the value, and the Icon look that shows one alone, are
 // offered only for a value the phone lists as on or off (plugin-value-list.js onOff). A change
@@ -56,7 +56,7 @@
     var catalog = node ? require('../../status-bars/domain/status-line-catalog.js') : window.StatusLineCatalog;
     var batteryDays = node ? require('../../status-bars/domain/battery-days.js') : window.BatteryDays;
     var html = node ? require('../../config-ui/lib/html.js') : PConf.html;
-    var pixelIcon = node ? require('../weather/pixel-icon.js') : window.PixelIcon;
+    var slotIcons = node ? require('./status-slot-icons.js') : window.StatusSlotIcons;
     var knownValues = node ? require('../../status-bars/domain/known-values.js') : window.KnownValues;
     // What the slot shows while it has no value to show (status-lines.js formatValue).
     var NONE_SHOWN = pluginValues.textFor(null, catalog.CAPS.MID_TEXT_MAX);
@@ -85,14 +85,6 @@
     // The Icon row's choices (plugin-values.js ICON_FORMS, in its order), by name.
     var ICON_LABELS = {'switch': 'Switch', wifi: 'Wi-Fi', bluetooth: 'Bluetooth', plug: 'Plug', phone: 'Phone',
         calendar: 'Calendar', tide: 'Tide'};
-    // The outline of each form of the icons (plugin-values.js ICON_FORMS), by its status icon's
-    // name (status-line-catalog.js ICONS): its id in PConf.icons (status-slot-icons.js).
-    var OUTLINE_NAMES = {PV_SWITCH: 'switchOn', PV_SWITCH_OFF: 'switchOff', PV_WIFI: 'wifi', PV_WIFI_OFF: 'wifiOff',
-        PV_BT: 'bluetooth', PV_BT_OFF: 'bluetoothOff', PV_PLUG: 'plug', PV_PHONE: 'phoneBattery',
-        PV_CALENDAR: 'countdown', PV_TIDE: 'tide'};
-    // The same by the status icon's id, as a bake packs it.
-    var OUTLINE_OF = {};
-    Object.keys(OUTLINE_NAMES).forEach(function (name) { OUTLINE_OF[catalog.ICONS[name]] = OUTLINE_NAMES[name]; });
     // The Icon row's groups, by whether their icons turn (plugin-values.js iconsThat), with their
     // headers' values; the Icon look offers only the first.
     var ICON_GROUPS = [{label: 'Turns with a value that is on or off', value: '__hdr_turns', turns: true},
@@ -858,15 +850,6 @@
     }
 
     /**
-     * @param {number} id A form of an icon (plugin-values.js ICON_FORMS).
-     * @returns {string} Its outline (OUTLINE_OF), '' for none.
-     */
-    function outlineOf(id) {
-        var name = OUTLINE_OF[id];
-        return (name && PConf && PConf.icons && PConf.icons.get(name)) || '';
-    }
-
-    /**
      * An Icon option's picture (picture resolver 'pluginValueIconPicture'): the outline of each
      * form the icon takes, on before off; none for a group's header.
      * @param {Object} S Settings.
@@ -875,7 +858,7 @@
      * @returns {string} HTML.
      */
     function iconPicture(S, env, args) {
-        return pluginValues.formsOf(args.value).map(outlineOf).join('');
+        return pluginValues.formsOf(args.value).map(slotIcons.outlineOfIcon).join('');
     }
 
     /**
@@ -914,27 +897,6 @@
     function barIcon(S, slotKey) {
         var pick = pluginValues.pickOf(S, slotKey);
         return pluginValues.iconId(pick, shownNow(pick, Date.now()));
-    }
-
-    /**
-     * barIcon in the pictures of the watch (preview-watch.js).
-     * @param {Object} S Settings.
-     * @param {string} slotKey The slot's settings key.
-     * @returns {?string} The key of the watch's drawing of it (status-pixels ids); null in the
-     *   Text look.
-     */
-    function barDrawing(S, slotKey) {
-        return pixelIcon.keyOfIcon(barIcon(S, slotKey));
-    }
-
-    /**
-     * barIcon in the Status bars tab's rows: its outline.
-     * @param {Object} S Settings.
-     * @param {string} slotKey The slot's settings key.
-     * @returns {?string} An <svg>, or null for none.
-     */
-    function barGlyph(S, slotKey) {
-        return outlineOf(barIcon(S, slotKey)) || null;
     }
 
     /**
@@ -989,7 +951,7 @@
         lookOptions: lookOptions, iconHint: iconHint, iconPicture: iconPicture, boldHint: boldHint,
         everyOptions: everyOptions, whichShown: whichShown, instanceOptions: instanceOptions,
         instanceHint: instanceHint,
-        barText: barText, barDrawing: barDrawing, barGlyph: barGlyph };
+        barText: barText, barIcon: barIcon };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PluginValuePage = api; }
 })();
