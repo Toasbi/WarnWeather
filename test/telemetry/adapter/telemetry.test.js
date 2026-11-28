@@ -309,6 +309,37 @@ test('snapshot reports the watch battery\'s Look and what its text shows', () =>
   assert.equal(handler.indexOf('batteryPctSlotShow'), -1);
 });
 
+// The Moon phase slot's Look, Shows and Name (slot-text.js moonLook, moonShows, moonName) and the
+// On demand Moon phase item's Show, Days and Tomorrow's mark (on-demand.js moonItem), read as the
+// bake reads them. Absent on aplite, which has neither. Lockstep with the Deno .strip() schema.
+test('snapshot reports the Moon phase slot\'s and the Moon phase item\'s settings', () => {
+  const SLOT = ['moonSlotLook', 'moonSlotShows', 'moonSlotName'];
+  const ITEM = ['moonItemShow', 'moonItemDays', 'moonItemNextDayMark'];
+  const pick = (snap, keys) => keys.map((key) => snap[key]);
+  const fresh = buildSettingsSnapshot({}, { platform: 'basalt' });
+  assert.deepEqual(pick(fresh, SLOT), ['both', 'phase', 'short'], 'the defaults');
+  assert.deepEqual(pick(fresh, ITEM), ['full', 'today', 'raquo'], 'the defaults');
+  const set = buildSettingsSnapshot({ moonSlotLook: 'text', moonSlotShows: 'full', moonSlotName: 'full',
+    moonItemShow: 'always', moonItemDays: 'tomorrow', moonItemNextDayMark: 'star' }, { platform: 'emery' });
+  assert.deepEqual(pick(set, SLOT), ['text', 'full', 'full']);
+  assert.deepEqual(pick(set, ITEM), ['always', 'tomorrow', 'star']);
+  const junk = buildSettingsSnapshot({ moonSlotLook: 'big', moonSlotShows: 3, moonSlotName: 'long',
+    moonItemShow: 'blue', moonItemDays: 'week', moonItemNextDayMark: '!' }, { platform: 'basalt' });
+  assert.deepEqual(pick(junk, SLOT.concat(ITEM)), ['both', 'phase', 'short', 'full', 'today', 'raquo'],
+    'anything unknown reads as the default, as the bake reads it');
+  const aplite = buildSettingsSnapshot({ moonSlotLook: 'text', moonItemShow: 'always' }, { platform: 'aplite' });
+  SLOT.concat(ITEM).forEach((key) => {
+    assert.strictEqual(aplite[key], undefined, key + ': aplite has no Moon phase');
+    assert.ok(Object.prototype.hasOwnProperty.call(aplite, key), key + ' is still emitted as a key');
+  });
+  // The server keeps what the phone sends: each field is in the function's schema.
+  const handler = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..',
+    'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
+  SLOT.concat(ITEM).forEach((key) => {
+    assert.ok(handler.indexOf('    ' + key + ': z.string().optional(),') !== -1, key + ' is in handler.ts');
+  });
+});
+
 // The Plugin value slots: whether one shows a value, how many do, their Looks and the icons they
 // draw (status-lines.js wantedPluginValues, plugin-values.js lookOf and iconName). The plugin and
 // its value never leave the phone. Absent on aplite. Lockstep with the Deno .strip() schema.
@@ -570,9 +601,12 @@ const HEAVIEST_SETTINGS = {
   alertAqiDays: 'tomorrow', alertPollenDays: 'tomorrow',
   alertUvNextDayMark: 'raquo', alertWindNextDayMark: 'gt', alertGustNextDayMark: 'plus',
   alertAqiNextDayMark: 'star', alertPollenNextDayMark: 'none',
-  // The Battery item on its longest look (the onDemand code is 40 letters whatever is
+  // The Battery item on its longest look (the onDemand code is 44 letters whatever is
   // ticked on this emery).
   batteryLowLevel: '25', batteryLowDisplay: 'value',
+  // The Moon phase item's and slot's settings on their longest options.
+  moonItemShow: 'always', moonItemDays: 'tomorrow', moonItemNextDayMark: 'raquo',
+  moonSlotLook: 'both', moonSlotShows: 'phase', moonSlotName: 'short',
   sleepEndHour: '7',
   // The Nighttime card at its heaviest: every one of the three features on, each
   // reporting its own window. Theme switching is on 'manual' because that is its

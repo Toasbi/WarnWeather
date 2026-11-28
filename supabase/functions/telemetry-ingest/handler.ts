@@ -160,6 +160,13 @@ const settingsSchema = z
     // on aplite, like onDemand. DEPLOY-ORDERING: ship this function before the app release
     // that sends it, or the strip step drops it silently.
     rainReplacesSlot: z.boolean().optional(),
+    // The On demand Moon phase item's Show ('always', 'full', 'new' or 'both'), Days ('today' or
+    // 'tomorrow') and Tomorrow's mark (a mark's name, like 'raquo'); onDemand says where it is
+    // ticked. Absent on aplite, like onDemand. z.string() per threshPhoneBatteryBoldMode's rule
+    // above. DEPLOY-ORDERING: ship this function before the app release that sends them.
+    moonItemShow: z.string().optional(),
+    moonItemDays: z.string().optional(),
+    moonItemNextDayMark: z.string().optional(),
     // The weather condition slot's Look: 'both', 'text' or 'icon'. Absent on aplite. z.string()
     // per threshPhoneBatteryBoldMode's rule above. DEPLOY-ORDERING: ship this function before
     // the app release that sends it, or the strip step drops it silently.
@@ -170,6 +177,13 @@ const settingsSchema = z
     // Whether the city slot draws the current weather's icon. Absent on aplite.
     // DEPLOY-ORDERING: ship this function before the app release that sends it.
     citySlotIcon: z.boolean().optional(),
+    // The Moon phase slot's Look ('both', 'text' or 'icon'), what its text shows ('phase', 'lit'
+    // or 'full', the day of the next full moon) and the phase's Name ('short' or 'full'). Absent
+    // on aplite. z.string() per threshPhoneBatteryBoldMode's rule above.
+    // DEPLOY-ORDERING: ship this function before the app release that sends them.
+    moonSlotLook: z.string().optional(),
+    moonSlotShows: z.string().optional(),
+    moonSlotName: z.string().optional(),
     // The watch battery's Look ('icon', 'text' or 'both') and what its text shows
     // ('percent', 'days' or 'both'). Absent on aplite. z.string() per
     // threshPhoneBatteryBoldMode's rule above, so a look added later passes as it is.

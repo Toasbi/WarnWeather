@@ -290,6 +290,7 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
     // The On demand items' code (undefined on a watch without On demand), which the
     // settings that only On demand reads follow.
     var onDemandCode = onDemand.telemetryCode(safe, env);
+    var moonItem = onDemandCode === undefined ? null : onDemand.moonItem(safe);
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
@@ -431,12 +432,27 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // demand. Lockstep with handler.ts -- deploy it first.
         rainReplacesSlot: onDemandCode === undefined ? undefined
             : statusThresholds.rainAlert(safe).replacesSlot,
+        // The On demand Moon phase item's Show ('always', 'full', 'new', 'both'), Days ('today',
+        // 'tomorrow') and Tomorrow's mark (an on-demand.js NEXT_DAY_MARKS key), read as the bake
+        // reads them (on-demand.js moonItem); the onDemand code says where it is ticked. Absent
+        // where onDemand is. Lockstep with handler.ts -- deploy it first.
+        moonItemShow: moonItem ? moonItem.show : undefined,
+        moonItemDays: moonItem ? moonItem.days : undefined,
+        moonItemNextDayMark: moonItem ? moonItem.mark : undefined,
         // The weather condition slot's Look ('both' icon and text, 'text', 'icon'; absent or
         // junk reads 'both'), on the watches that draw its glyph: aplite prints text whatever
         // is stored. Lockstep with handler.ts -- deploy it first.
         conditionSlotLook: isAplite ? undefined : slotText.conditionLook(safe),
         conditionSlotName: isAplite ? undefined : slotText.conditionName(safe),
         citySlotIcon: isAplite ? undefined : slotText.cityIcon(safe),
+        // The Moon phase slot's Look ('both', 'text', 'icon'), what its text shows ('phase',
+        // 'lit', 'full': the day of the next full moon) and the phase's Name ('short', 'full'),
+        // read as the bake reads them (slot-text.js moonLook, moonShows, moonName), like the
+        // weather condition's whether or not a bar shows the slot. Absent on aplite, which has no
+        // such slot. Lockstep with handler.ts -- deploy it first.
+        moonSlotLook: isAplite ? undefined : slotText.moonLook(safe),
+        moonSlotShows: isAplite ? undefined : slotText.moonShows(safe),
+        moonSlotName: isAplite ? undefined : slotText.moonName(safe),
         // The watch battery's Look ('icon' the drawn battery, 'text', 'both' the battery and
         // its text) and what its text shows ('percent', 'days' left from another app's
         // estimate, 'both'). Absent on

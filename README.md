@@ -44,6 +44,7 @@ Icons at the edge of a status bar that appear only when something needs your att
 - Rain on its way, with a countdown
 - Wind, gusts, UV index, air quality and pollen above your warn level, today or tomorrow
 - Low battery, Bluetooth lost, quiet time and battery saver hours
+- The moon at full moon, new moon or every day, with a mark the day before if you like
 - Your own warn and danger levels and colors for each alert
 
 ### Rain radar*
@@ -54,6 +55,7 @@ Icons at the edge of a status bar that appear only when something needs your att
 ### Status bars
 
 - Weather condition with a sun or moon icon, temperature, air quality, wind, gusts, UV index, pollen, dew point, air pressure, sunrise and sunset
+- Moon phase as a picture with its name, how much of the moon is lit or the day of the next full moon, the next dawn or dusk and the day's length, worked out on your phone*
 - Date, calendar week, city with the current weather's icon, countdown to a date
 - Steps, sleep, distance, heart rate*
 - Watch battery as an icon, as text or both, with the days it has left from the Muninn app*

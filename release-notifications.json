@@ -222,5 +222,9 @@
   "3.4.0": {
     "title": "Plugin values",
     "body": "Status bar slots can show plugin values, such as your phone's network type, and the Watch battery fits any slot (not on Pebble Classic or Steel). Open the settings to see what's new."
+  },
+  "3.6.0": {
+    "title": "Moon phase, dawn and dusk",
+    "body": "Status bar slots can show the moon's phase, the next dawn or dusk and the day's length (not on Pebble Classic or Steel). Pollen now works with every weather provider, and you can pick Open-Meteo's weather model. Open the settings to see what's new."
   }
 }

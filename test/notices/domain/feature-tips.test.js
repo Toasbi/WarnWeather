@@ -107,6 +107,13 @@ test('a tip shows only where its feature can be used', () => {
     assert.equal(shows('pluginValueIcon', env), pluginValue(env), JSON.stringify(env));
     assert.equal(shows('pluginValues', env), pluginValue(env), JSON.stringify(env));
   });
+  // The sun and moon slots: every watch but aplite, plugins or not (the phone works them out).
+  const sky = (env) => shows('sunAndMoon', env);
+  [{ platform: 'basalt', plugins: false }, { platform: 'chalk' }, { platform: 'diorite' },
+    { platform: 'emery', plugins: true }, { platform: 'flint' }, {}].forEach((env) =>
+    assert.equal(sky(env), true, JSON.stringify(env)));
+  assert.equal(sky({ platform: 'aplite', plugins: true }), false, 'aplite has none of the three');
+  assert.equal(sky(null), false);
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
     assert.ok(shows('blackTheme', env), JSON.stringify(env)));
@@ -283,5 +290,20 @@ test('the pollen tip names the page\'s own words for the slot, on every watch', 
   assert.equal(tip.when, undefined, 'every watch: the phone fetches');
   assert.equal(tip.since, '3.6.0');
   assert.deepEqual(featureTips.TIPS.filter((x) => x.since === '3.6.0').map((x) => x.id),
-    ['openMeteoModel', 'pollenEveryProvider'], 'its release\'s, in the card\'s order');
+    ['sunAndMoon', 'openMeteoModel', 'pollenEveryProvider'], 'its release\'s, in the card\'s order');
+});
+
+test('the sun and moon tip names the three slots and what the Moon phase dialog shows, in the page\'s words', () => {
+  const tip = featureTips.TIPS.find((t) => t.id === 'sunAndMoon');
+  assert.equal(featureTips.TIPS[0], tip, 'the newest tip on top');
+  const [moon, twilight, dayLength] = ['moon', 'twilight', 'dayLength'].map((code) => catalog.byCode(code).label);
+  assert.ok(tip.html.indexOf('Set a slot to ' + moon + ', ' + twilight + ' or ' + dayLength + '.') !== -1, tip.html);
+  assert.ok(tip.html.indexOf('Tap Edit beside ' + moon + ' to show how much of the moon is lit or the day of '
+    + 'the next full moon.') !== -1, tip.html);
+  // The Moon phase dialog's Shows row offers the two the tip names, beside the phase's name.
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  const shows = watch.sections.find((s) => s.sheetId === 'threshMoon').items.find((i) => i.messageKey === 'moonSlotShows');
+  assert.deepEqual(shows.options.map((o) => o[1]), ['phase', 'lit', 'full']);
+  assert.deepEqual(tip.open, { tab: 'watch' }, 'Show me opens the Status bars tab');
+  assert.equal(tip.since, '3.6.0');
 });

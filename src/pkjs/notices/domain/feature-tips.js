@@ -41,9 +41,33 @@ function pluginValueOffered(env) {
     return statusLineCatalog.itemAvailable(statusLineCatalog.byCode('pluginValue'), null, env);
 }
 
+/**
+ * Where the status lists offer the sun and moon slots worked out on the phone (status-line-catalog.js
+ * 'twilight', 'dayLength' and 'moon', whose rule is the same): every watch but aplite.
+ * @param {?Object} env The page's env.
+ * @returns {boolean}
+ */
+function skySlotsOffered(env) {
+    return Boolean(env) && statusLineCatalog.itemAvailable(statusLineCatalog.byCode('moon'), null, env);
+}
+
 // In the card's order: a new release's tips go on top.
 /** @type {FeatureTip[]} */
 var TIPS = [
+    {
+        id: 'sunAndMoon',
+        since: '3.6.0',
+        title: 'Moon phase, dawn and dusk, day length',
+        // The three slots the phone works out from the clock and the place (status-bars/domain/
+        // sky-slots.js), in the slot lists' Sun and moon group, and the Moon phase slot's dialog,
+        // whose Shows row picks how much of the moon is lit or the next full moon's day
+        // (page/settings/schema.js moonSlotSheet). Show me opens the Status bars tab.
+        html: 'Status bar slots can now show the moon\'s phase, the next dawn or dusk, and how long the ' +
+            'day is. Set a slot to Moon phase, Dawn/dusk or Day length. Tap Edit beside Moon phase to show ' +
+            'how much of the moon is lit or the day of the next full moon.',
+        open: { tab: 'watch' },
+        when: skySlotsOffered
+    },
     {
         id: 'openMeteoModel',
         since: '3.6.0',

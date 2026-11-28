@@ -365,6 +365,28 @@ member (`status_short_text.h`), and the settings page's pictures swap in the sam
 the condition's code alone, and it cuts the date.
 _Avoid_: abbreviation.
 
+**Sun and moon slots**:
+The three status slots the phone works out from the clock and the place, with no weather
+fetch (`sky-slots.js`): Dawn/dusk, the next civil dawn or dusk; Day length, today's time from
+sunrise to sunset; and Moon phase, tonight's phase by its name, how much of the moon is lit or
+the day of the next full moon, from the date alone. South of the equator the moon's picture is
+mirrored, as the moon looks there. They take the Sunrise/sunset slot's Bold, though Sunrise/sunset
+is not one of them: it prints the forecast's sun events. Not on aplite.
+_Avoid_: sky slots, in what users read; twilight, the code's name for Dawn/dusk.
+
+**Moon phase (On demand item)**:
+The moon at a bar's edge on the days its Show names: every day, at full moon (the default), at
+new moon or at both, each the calendar day `moon.js` phaseOfDay names. With Today + tomorrow it
+also shows on the day before such a moon, with Tomorrow's mark left of the moon (`moon-item.js`).
+The phone sends the day's picture and mark in the levels word (`status-wire.js`
+packWeatherLevels), and the watch draws them (`on_demand.h` od_moon_of). Not on aplite.
+
+**Sky turn**:
+The next instant a bake's sun and moon slots, or the On demand Moon phase, change by
+themselves: a dawn or dusk coming, the day before it leaving the text, or local midnight
+(`sky-slots.js` and `moon-item.js` turnAt). The phone bakes the status bars again then, between
+fetches (`status-rebake.js`).
+
 **Feature tip**:
 One entry of the settings page's "New in this update" card: a feature the user has to switch
 on, how to do it, and the dialog or tab its Show me opens (`notices/domain/feature-tips.js`).

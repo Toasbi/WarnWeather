@@ -92,6 +92,18 @@ Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept
   }
 });
 
+// The Moon phase slot's and the On demand Moon phase item's settings: the app's own words,
+// kept as strings, so a Look or a mark added later passes.
+Deno.test("the Moon phase slot's and item's settings are accepted and kept", () => {
+  const moon = {
+    moonSlotLook: "text", moonSlotShows: "full", moonSlotName: "short",
+    moonItemShow: "always", moonItemDays: "tomorrow", moonItemNextDayMark: "raquo",
+  };
+  assertEquals(storedSettings(moon), moon);
+  assertEquals(storedSettings({ moonSlotLook: "halo" }), { moonSlotLook: "halo" });
+  assertEquals(storedSettings({ moonItemShow: 3 }), null, "a number is no Show");
+});
+
 // The Weather tab fields: a toggle, an age in whole days and a count of saved places. The
 // count has no max, so a page that saves more places is no 400; what no phone sends is.
 Deno.test("the Weather tab fields are accepted and kept", () => {
