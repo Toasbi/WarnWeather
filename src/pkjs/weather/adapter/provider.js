@@ -615,6 +615,11 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // payload waits for the slower one, not their sum. Each counts once.
                 var aqiDone = false;
                 var pollenDone = false;
+                /**
+                 * Compose the payload and send it, once both the air quality and the
+                 * pollen callbacks are done; a call before that returns at once.
+                 * @returns {void}
+                 */
                 function composeAndSend() {
                     if (!aqiDone || !pollenDone) { return; }
                     // The day records only refine the slots' day max: a storage
