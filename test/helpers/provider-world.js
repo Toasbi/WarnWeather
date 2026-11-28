@@ -38,8 +38,8 @@ const UV = [0, 0, 0, 0, 0.1, 0.4, 1.0, 2.0, 3.3, 4.6, 5.7, 6.4, 6.6, 6.2, 5.3, 4
   0.2, 0, 0, 0, 0];
 const PRESSURE_STEP = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 1.8, 1.5, 1.2, 0.9];
 const AQI_STEP = [0, 2, 4, 6, 8, 10, 12, 14, 16, 14, 12, 10];
-// The CAMS forecast's grass pollen (grains per cubic meter) by local hour: a day's mean of 13,
-// medium, today and on the days before, and 20 more every day after, so tomorrow's is high.
+// The CAMS forecast's grass pollen (grains per cubic meter) by local hour: a day's mean of about
+// 12, medium, today and on the days before, and 20 more every day after, so tomorrow's is high.
 const GRASS = [2, 2, 2, 2, 3, 5, 9, 14, 20, 26, 30, 32, 32, 30, 26, 20, 14, 9, 6, 4, 3, 2, 2, 2];
 
 /**

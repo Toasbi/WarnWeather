@@ -133,8 +133,9 @@ test('camsBands needs twelve hours of a type for its day mean', () => {
   assert.deepEqual(pollenDays.camsBands(answer), {}, 'eleven hours: no band');
 });
 
-test('camsBands reads the answers recorded at Berlin and New York on 2026-11-28', () => {
-  // Berlin, in winter: every type 0 for the place's today and tomorrow (from its midnight, CET).
+test('camsBands reads answers built as Open-Meteo gave them at Berlin and New York on 2026-11-28', () => {
+  // Built after the answers of that day, which the test does not keep. Berlin, in winter: every
+  // type 0, not null, for the place's today and tomorrow (from its midnight, CET).
   const berlin = camsAnswer(1795820400, 48, () => 0);
   const days = [12, 36].map((i) => pollenDays.localDateKey(new Date((1795820400 + i * HOUR) * 1000)));
   const bands = pollenDays.camsBands(berlin);

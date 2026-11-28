@@ -28,7 +28,7 @@ function segment(start, len, mm) {
 const RAIN_EXACT = segment(3, 4, 1.5);
 const RAIN_AREA = segment(2, 6, 1.8);
 // A pollen band (see BANDS in weather/domain/pollen-days.js) baked into
-// the segments that show the pollen status slot (theme-bwlight, status-3).
+// the segments that show the pollen status slot (theme-bwlight, status-3, status-4).
 const POLLEN_BAKED = '1-2';
 
 const PLATFORM_CAPS = {
@@ -87,7 +87,7 @@ function themeSegments() {
       { layoutPreset: THEME_PRESET[theme] },
     );
     if (theme === 'light' || theme === 'bw-light') { clay.colorTime = '#000000'; }
-    // bw-light's forecast-left slot is pollen (see THEME_SLOTS), beside the DWD radar, like status-3.
+    // bw-light shows the DWD radar, like status-3 and status-4; the other themes leave it off.
     if (theme === 'bw-light') { clay.radarProvider = 'dwd'; }
     segs.push({
       id: 'theme-' + (theme === 'bw-light' ? 'bwlight' : theme),

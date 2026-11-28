@@ -51,12 +51,12 @@ test('light / bw-light theme segments force colorTime black', () => {
   assert.strictEqual(byName['reel-theme-bwlight'].claySettings.colorTime, '#000000');
 });
 
-test('theme-bwlight and status-3 bake pollen data; other segments leave it unset', () => {
+test('theme-bwlight and status-3 bake pollen data; a theme without a pollen slot leaves it unset', () => {
   const byName = generateIntoTmp();
   assert.strictEqual(byName['reel-theme-bwlight'].weather.pollen, '1-2');
   assert.strictEqual(byName['reel-status-3'].weather.pollen, '1-2');
   assert.strictEqual(byName['reel-theme-bwlight'].claySettings.radarProvider, 'dwd',
-    'bw-light shows the DWD radar beside its pollen slot, like status-3');
+    'bw-light shows the DWD radar, like status-3');
   assert.strictEqual(byName['reel-theme-dark'].weather.pollen, undefined,
     'a theme without a pollen slot should not carry baked pollen data');
 });
