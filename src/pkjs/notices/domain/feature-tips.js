@@ -15,6 +15,7 @@
 
 var batteryDays = require('../../status-bars/domain/battery-days.js');
 var statusLineCatalog = require('../../status-bars/domain/status-line-catalog.js');
+var platformLib = require('../../config-ui/lib/platform.js');
 
 /**
  * @typedef {Object} FeatureTip
@@ -49,6 +50,16 @@ function pluginValueOffered(env) {
  */
 function skySlotsOffered(env) {
     return Boolean(env) && statusLineCatalog.itemAvailable(statusLineCatalog.byCode('moon'), null, env);
+}
+
+/**
+ * Where the Alerts tab and its items are (platform.js isOnDemandPlatform, the page's
+ * env.onDemand): every watch but aplite, whose feature set is frozen.
+ * @param {?Object} env The page's env.
+ * @returns {boolean}
+ */
+function onDemandOffered(env) {
+    return Boolean(env) && platformLib.isOnDemandPlatform(env.platform);
 }
 
 // In the card's order: a new release's tips go on top.
@@ -93,6 +104,20 @@ var TIPS = [
         html: 'The Pollen slot now works with every weather provider. Set a slot to Pollen ' +
             'to see today\'s level.',
         open: { tab: 'watch' }
+    },
+    {
+        id: 'moonOnDemand',
+        since: '3.6.0',
+        title: 'The moon at the edge of a status bar',
+        // The On demand Moon phase item (status-bars/domain/moon-item.js), on no bar until the
+        // user places it, in the Alerts tab's Sky card: its dialog's Shows on grid, its Show row
+        // (at full moon by default) and Days' Today + tomorrow, which shows the moon the day
+        // before too, with a mark (page/alerts/alerts-schema.js moonSheet). Show me opens it.
+        html: 'A status bar can show the moon at its edge: at full moon, at new moon or every day. ' +
+            'On the Alerts tab, open Moon phase under Sky and choose which status bars show it. ' +
+            'Pick Today + tomorrow under Days to see it the day before too.',
+        open: { sheet: 'odMoon' },
+        when: onDemandOffered
     },
     {
         id: 'pluginValues',

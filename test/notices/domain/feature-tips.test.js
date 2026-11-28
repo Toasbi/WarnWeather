@@ -114,6 +114,14 @@ test('a tip shows only where its feature can be used', () => {
     assert.equal(sky(env), true, JSON.stringify(env)));
   assert.equal(sky({ platform: 'aplite', plugins: true }), false, 'aplite has none of the three');
   assert.equal(sky(null), false);
+  // The On demand Moon phase item: wherever the Alerts tab is, every watch but aplite, plugins
+  // or not (the phone works the moon out).
+  const moonItem = (env) => shows('moonOnDemand', env);
+  [{ platform: 'basalt', plugins: false }, { platform: 'chalk' }, { platform: 'diorite' },
+    { platform: 'emery', plugins: true }, { platform: 'flint' }, {}].forEach((env) =>
+    assert.equal(moonItem(env), true, JSON.stringify(env)));
+  assert.equal(moonItem({ platform: 'aplite', plugins: true }), false, 'aplite has no Alerts tab');
+  assert.equal(moonItem(null), false);
   // A tip without a rule is for every watch.
   [{ platform: 'aplite', plugins: false }, null, {}].forEach((env) =>
     assert.ok(shows('blackTheme', env), JSON.stringify(env)));
@@ -290,7 +298,7 @@ test('the pollen tip names the page\'s own words for the slot, on every watch', 
   assert.equal(tip.when, undefined, 'every watch: the phone fetches');
   assert.equal(tip.since, '3.6.0');
   assert.deepEqual(featureTips.TIPS.filter((x) => x.since === '3.6.0').map((x) => x.id),
-    ['sunAndMoon', 'openMeteoModel', 'pollenEveryProvider'], 'its release\'s, in the card\'s order');
+    ['sunAndMoon', 'openMeteoModel', 'pollenEveryProvider', 'moonOnDemand'], 'its release\'s, in the card\'s order');
 });
 
 test('the sun and moon tip names the three slots and what the Moon phase dialog shows, in the page\'s words', () => {
@@ -305,5 +313,30 @@ test('the sun and moon tip names the three slots and what the Moon phase dialog 
   const shows = watch.sections.find((s) => s.sheetId === 'threshMoon').items.find((i) => i.messageKey === 'moonSlotShows');
   assert.deepEqual(shows.options.map((o) => o[1]), ['phase', 'lit', 'full']);
   assert.deepEqual(tip.open, { tab: 'watch' }, 'Show me opens the Status bars tab');
+  assert.equal(tip.since, '3.6.0');
+});
+
+test('the moon item tip names the Alerts tab, its Sky card and the dialog\'s rows, in the page\'s words', () => {
+  const tip = featureTips.TIPS.find((t) => t.id === 'moonOnDemand');
+  const alertsTab = schema.tabs.find((t) => t.id === 'alerts');
+  assert.ok(tip.html.indexOf('On the ' + alertsTab.label + ' tab, open Moon phase under Sky') !== -1, tip.html);
+  // The Sky card's row opens the dialog Show me opens; its Show row offers the three the tip names.
+  const items = [];
+  (function walk(node) {
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node || typeof node !== 'object') { return; }
+    if (node.sheetId === 'odMoon') { items.push(node); }
+    Object.keys(node).forEach((k) => walk(node[k]));
+  })(alertsTab);
+  const dialog = items.find((node) => node.sheetOnly);
+  assert.ok(dialog, 'the Moon phase dialog is on the Alerts tab');
+  assert.equal(dialog.title, 'Moon phase');
+  const row = (key) => dialog.items.find((i) => i.messageKey === key);
+  assert.deepEqual(row('moonItemShow').options.map((o) => o[0]),
+    ['Always', 'At full moon', 'At new moon', 'At new and full moon']);
+  assert.match(tip.html, /at full moon, at new moon or every day/);
+  assert.deepEqual(row('moonItemDays').options.find((o) => o[1] === 'tomorrow'), ['Today + tomorrow', 'tomorrow']);
+  assert.match(tip.html, /Pick Today \+ tomorrow under Days/);
+  assert.deepEqual(tip.open, { sheet: 'odMoon' }, 'Show me opens the dialog');
   assert.equal(tip.since, '3.6.0');
 });
