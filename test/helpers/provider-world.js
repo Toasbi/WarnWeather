@@ -299,8 +299,7 @@ const SERVICES = [
     match: (url) => url.indexOf('https://air-quality-api.open-meteo.com/v1/air-quality?') === 0
       && /_pollen/.test(query(url).get('hourly')),
     answer: (url) => {
-      const days = Number(query(url).get('forecast_days'));
-      const time = Array.from({ length: days * 24 }, (_, k) => DAY0 - BERLIN_OFFSET + k * HOUR);
+      const time = openMeteoTimes(url).map((t) => t - BERLIN_OFFSET);
       const hourly = { time: time };
       query(url).get('hourly').split(',').forEach((field) => {
         hourly[field] = time.map((t, k) => (field === 'grass_pollen' ? cycled(GRASS, k) + Math.floor(k / 24) * 20 : 0));
