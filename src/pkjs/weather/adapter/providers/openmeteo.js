@@ -775,12 +775,15 @@ function fetchReadingsInto(provider, lat, lon, readings, done) {
 }
 
 // The weather models that had no forecast for a place (noForecast), each with the last
-// NO_FORECAST_PLACES such places, to a tenth of a degree: a fetch there asks the default model at
-// once, without the request the model would refuse again. A few, so a position that wavers
-// across a tenth's edge does not ask the model again at every other fetch. Kept in memory only,
-// so a PKJS start asks the model again.
+// NO_FORECAST_PLACES such places, to a tenth of a degree, for NO_FORECAST_MS: a fetch there asks
+// the default model at once, without the request the model would refuse again. A few, so a
+// position that wavers across a tenth's edge does not ask the model again at every other fetch;
+// for some hours, so an answer that failed for another reason (a run without its temperatures,
+// the phone's clock gone wrong) keeps the model away no longer. Kept in memory only, so a PKJS
+// start asks the model again.
 var noForecastAt = {};
 var NO_FORECAST_PLACES = 4;
+var NO_FORECAST_MS = 6 * 60 * 60 * 1000;
 
 /**
  * A place to a tenth of a degree (about 11 km), the key noForecastAt keeps.
@@ -793,14 +796,25 @@ function placeKey(lat, lon) {
 }
 
 /**
+ * The places a model had no forecast for that are still known at a time (noForecastAt).
+ * @param {string} model A model id.
+ * @param {number} now Epoch ms.
+ * @returns {Array<{place: string, until: number}>} The newest last.
+ */
+function knownNoForecast(model, now) {
+    return (noForecastAt[model] || []).filter(function(known) { return known.until > now; });
+}
+
+/**
  * Note that a model had no forecast for a place (noForecastAt), the newest last.
  * @param {string} model A model id.
  * @param {string} place A placeKey.
+ * @param {number} now Epoch ms.
  * @returns {void}
  */
-function rememberNoForecast(model, place) {
-    var places = (noForecastAt[model] || []).filter(function(known) { return known !== place; });
-    noForecastAt[model] = places.concat([place]).slice(-NO_FORECAST_PLACES);
+function rememberNoForecast(model, place, now) {
+    var places = knownNoForecast(model, now).filter(function(known) { return known.place !== place; });
+    noForecastAt[model] = places.concat([{ place: place, until: now + NO_FORECAST_MS }]).slice(-NO_FORECAST_PLACES);
 }
 
 /**
@@ -856,7 +870,8 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
     // had no forecast for this place.
     var picked = openMeteoModels.modelRow(this.options.openMeteoModel).id;
     var place = placeKey(lat, lon);
-    var model = (noForecastAt[picked] || []).indexOf(place) !== -1 ? openMeteoModels.DEFAULT : picked;
+    var model = knownNoForecast(picked, Date.now()).some(function(known) { return known.place === place; })
+        ? openMeteoModels.DEFAULT : picked;
     var adopt = function(mapped) {
         // Total: feels, dew point, the wind bearing and UV ride the aux calls
         // below, so the mapped shape lacks their keys and adoptMapped leaves them
@@ -900,14 +915,22 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         }
         // The picked model has no forecast here: the default's serves, and the fetch's
         // telemetry carries why once (fetch-cycle.js recoveredFailure).
-        rememberNoForecast(model, place);
+        rememberNoForecast(model, place, Date.now());
         if (!self.recoveredFailure) { self.recoveredFailure = mainFailure; }
         requestForecast(openMeteoModels.DEFAULT, lat, lon, hours, adopt, onFailure);
     });
 };
 
+/**
+ * Forget the places without a forecast, as a PKJS start does (tests only).
+ * @returns {void}
+ */
+function resetForTests() {
+    noForecastAt = {};
+}
+
 module.exports = {
-    _resetForTests: function() { noForecastAt = {}; },
+    _resetForTests: resetForTests,
     mapResponse: mapResponse,
     buildForecastUrl: buildForecastUrl,
     buildChanceUrl: buildChanceUrl,

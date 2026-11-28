@@ -69,11 +69,12 @@ function serve(mains) {
  * @param {Object} p An OpenMeteoProvider.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
+ * @param {number} [at] When, epoch seconds; 08:01 on the answers' first day when absent.
  * @returns {?Object} The failure value, or null on success.
  */
-function fetch(p, lat, lon) {
+function fetch(p, lat, lon, at) {
   const realNow = Date.now;
-  Date.now = function () { return (BASE + 8 * HOUR + 60) * 1000; };
+  Date.now = function () { return (at || BASE + 8 * HOUR + 60) * 1000; };
   let outcome;
   try {
     p.withProviderData(lat, lon, false, function () { outcome = null; }, function (f) { outcome = f; });
@@ -186,6 +187,22 @@ test('the fetch remembers a few places without a forecast: a position across a t
   assert.deepEqual(asked(40.751), ['ecmwf_ifs025']);
   [41.0, 41.2, 41.4, 41.6].forEach((lat) => assert.deepEqual(asked(lat), both, String(lat)));
   assert.deepEqual(asked(40.749), both, 'four newer places later, the first is asked again');
+});
+
+test('a place without a forecast is known for six hours, then the model is asked again', () => {
+  openmeteo._resetForTests();
+  const urls = serve({ chmi_aladin_seamless: { fail: { code: 'status_400' } } });
+  const p = providerWith('chmi_aladin_seamless');
+  const asked = (hours) => {
+    urls.length = 0;
+    assert.equal(fetch(p, 40.71, -74.0, BASE + (8 + hours) * HOUR + 60), null);
+    return mainModels(urls);
+  };
+  const both = ['chmi_aladin_seamless', 'ecmwf_ifs025'];
+  assert.deepEqual(asked(0), both);
+  assert.deepEqual(asked(5), ['ecmwf_ifs025'], 'five hours on: still known');
+  assert.deepEqual(asked(6), both, 'six hours on: the model is asked again, so a failure of another kind passes');
+  assert.deepEqual(asked(7), ['ecmwf_ifs025'], 'and the place is known again from then');
 });
 
 test('an answer without a day of temperatures takes the default too', () => {
