@@ -144,7 +144,7 @@ function byTime(block) {
  * The chance of rain for the hour starting at `time`. ECMWF's comes from its ensemble, which steps
  * every 3 hours: the bucket stamped on a 3-hour boundary holds that block's chance and the two in
  * between are a smooth blend. So the hour reads its own block's boundary (the first at or after the
- * hour's end), as the watchface does (openmeteo.js ensembleBlockSlice), falling back to the bucket
+ * hour's end), as the watchface does (openmeteo.js chanceBlockSlice), falling back to the bucket
  * at the hour's end.
  *
  * @param {Function} at byTime lookup of the hourly block.
