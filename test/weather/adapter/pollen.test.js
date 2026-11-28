@@ -21,6 +21,7 @@ const http = require('../../../src/pkjs/weather/adapter/http.js');
 const assert = require('node:assert/strict');
 
 const pollen = require('../../../src/pkjs/weather/adapter/pollen.js');
+const pollenStore = require('../../../src/pkjs/weather/adapter/pollen-store.js');
 const pollenDays = require('../../../src/pkjs/weather/domain/pollen-days.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
 const KEYS = require('../../../src/pkjs/settings/domain/storage-keys.js');
@@ -238,11 +239,48 @@ test('with the CAMS source the fetch writes today\'s and tomorrow\'s worst band 
   assert.equal(run.done, 1);
 });
 
-test('outside the CAMS forecast\'s area the fetch asks nothing', () => {
+test('outside the CAMS forecast\'s area the fetch asks nothing, and nothing stands in', () => {
   const run = fetchWith(CAMS, 40.71, -74.01, () => assert.fail('no request'));
   assert.deepEqual(run.urls, []);
   assert.equal(run.provider.pollenToday, null);
   assert.equal(run.done, 1);
+  // A good answer just inside the area's north edge is kept; 0.03° beyond it, past the edge,
+  // it does not stand in, though it is within 0.05°.
+  fetchWith(CAMS, 71.99, 10, GOOD.cams);
+  const beyond = fetchWith(CAMS, 72.02, 10, () => assert.fail('no request'));
+  assert.deepEqual([beyond.provider.pollenToday, beyond.provider.pollenTomorrow, beyond.done], [null, null, 1]);
+});
+
+test('a fetch whose bands fail to settle still finishes, and leaves the bands as they are', () => {
+  const settle = pollenDays.settle;
+  pollenDays.settle = () => { throw new Error('settle failed'); };
+  try {
+    const run = fetchWith(CAMS, 48.86, 2.35, GOOD.cams, { pollenToday: 'existing', pollenTomorrow: 'later' });
+    assert.equal(run.done, 1);
+    assert.equal(run.provider.pollenToday, 'existing');
+    assert.equal(run.provider.pollenTomorrow, 'later');
+  } finally {
+    pollenDays.settle = settle;
+  }
+});
+
+test('the last answer\'s store never throws: an unreadable record is none, and a failing store costs only the stand-in', () => {
+  localStorage.setItem(KEYS.LAST_POLLEN_KEY, '{not json');
+  assert.equal(pollenStore.read(), null, 'an unreadable record');
+  const saved = global.localStorage;
+  const throwing = () => { throw new Error('storage unavailable'); };
+  global.localStorage = { getItem: throwing, setItem: throwing, removeItem: throwing, clear: throwing };
+  try {
+    assert.equal(pollenStore.read(), null, 'a store that cannot be read');
+    assert.doesNotThrow(() => pollenStore.write({ source: 'cams', lat: 48.86, lon: 2.35, bands: {} }));
+    const good = fetchWith(CAMS, 48.86, 2.35, GOOD.cams);
+    assert.deepEqual([good.provider.pollenToday, good.provider.pollenTomorrow, good.done], ['1', '3', 1],
+      'a good answer shows though it cannot be kept');
+    const failed = fetchWith(CAMS, 48.86, 2.35, FAILURES['a failed request']);
+    assert.deepEqual([failed.provider.pollenToday, failed.done], [null, 1], 'a failed refresh: no stand-in');
+  } finally {
+    global.localStorage = saved;
+  }
 });
 
 test('a late callback cannot change a fetch that has completed', () => {

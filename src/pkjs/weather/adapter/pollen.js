@@ -61,10 +61,11 @@ var URLS = { dwd: buildUrl, cams: buildCamsUrl };
 
 /**
  * Fetch today's and tomorrow's pollen band into a weather provider, from the source the
- * Provider reads (options.pollenSource). A source is not asked outside its area. A refresh that
- * brings no band for today, failed or empty, takes the last good answer's bands for both days
- * when it came from the same source at the same place (pollen-days.js settle). A band nothing
- * brings leaves its property as it is. Failures are non-fatal; done is always called once.
+ * Provider reads (options.pollenSource). A source is not asked outside its area, and nothing
+ * stands in there. A refresh that brings no band for today, failed or empty, takes the last
+ * good answer's bands for the days it brings none of, when that answer came from the same
+ * source at the same place (pollen-days.js settle). A band nothing brings leaves its property
+ * as it is. Failures are non-fatal; done is always called once.
  * @param {Object} provider Active provider (reads .options.fetchPollen and .pollenSource,
  *     writes .pollenToday and .pollenTomorrow).
  * @param {number} lat Latitude in decimal degrees.
@@ -90,16 +91,22 @@ function fetchPollenInto(provider, lat, lon, done) {
     function complete(bands) {
         if (completed) { return; }
         completed = true;
-        var day = pollenDays.settle(bands, pollenStore.read, source, lat, lon, now);
-        if (day.keep) { pollenStore.write(day.keep); }
-        if (day.standsIn) { console.log('Pollen: showing the last ' + asked.name + ' answer'); }
-        if (day.today !== null) { provider.pollenToday = day.today; }
-        if (day.tomorrow !== null) { provider.pollenTomorrow = day.tomorrow; }
+        // This runs in the request's callback, where a throw would leave the fetch waiting
+        // for its watchdog: one costs only the bands.
+        try {
+            var day = pollenDays.settle(bands, pollenStore.read, source, lat, lon, now);
+            if (day.keep) { pollenStore.write(day.keep); }
+            if (day.standsIn) { console.log('Pollen: showing the last ' + asked.name + ' answer'); }
+            if (day.today !== null) { provider.pollenToday = day.today; }
+            if (day.tomorrow !== null) { provider.pollenTomorrow = day.tomorrow; }
+        } catch (ex) {
+            console.log('[!] ' + asked.name + ' pollen bands failed');
+        }
         done();
     }
 
     if (!pollenDays.covers(source, lat, lon)) {
-        complete({});
+        done();
         return;
     }
     try {
