@@ -1154,7 +1154,7 @@ if (typeof require !== 'undefined') {
      * The Moon phase slot dialog's list of every phase (its staticText's textFrom), laid out like
      * the weather condition's (conditionList): its picture as the north sees it
      * (preview-status-bars.js moonOutline), its name and the short form, one row each, in the
-     * moon's order from the new moon (slot-text.js MOON_NAMES, MOON_ICONS).
+     * moon's order from the new moon (slot-text.js MOON_PHASES).
      * @param {Object} S Live settings state (unused).
      * @param {Object} env Platform env (unused).
      * @returns {string} HTML.
@@ -1164,8 +1164,8 @@ if (typeof require !== 'undefined') {
         var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
             + '<tr style="font-size:12px;opacity:.7;text-align:left;"><th style="' + cell + 'font-weight:500;">Icon</th>'
             + '<th style="' + cell + 'font-weight:500;">Name</th><th style="' + cell + 'font-weight:500;">Short</th></tr>';
-        slotText.MOON_NAMES.forEach(function (names, phase) {
-            var icon = (statusBarsPreview.moonOutline(slotText.MOON_ICONS[phase]) || '')
+        slotText.MOON_PHASES.forEach(function (names) {
+            var icon = (statusBarsPreview.moonOutline(names.icon) || '')
                 .replace('<svg ', '<svg width="24" height="24" aria-hidden="true" ');
             html += '<tr style="border-top:1px solid rgba(127,127,127,.25);">'
                 + '<td style="' + cell + '"><span style="display:inline-flex;align-items:center;">' + icon + '</span></td>'

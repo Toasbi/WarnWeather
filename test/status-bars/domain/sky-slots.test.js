@@ -27,7 +27,7 @@ const ALL = ['twilight', 'dayLength', 'moon'];
 function slotsAt(zone, place, times, settings, codes) {
   return inZone(zone, { sky: SKY }, ({ sky }, { place, times, settings, codes }) => times.map((iso) => {
     const now = new Date(iso);
-    const readings = sky.readingsAt(codes, now, place);
+    const readings = sky.readingsAt(codes, now, () => place);
     const out = {};
     codes.forEach((code) => {
       out[code] = sky.textOf(code, readings, settings, code === 'moon' ? 19 : 8, now) + ' '
@@ -48,7 +48,7 @@ function slotsAt(zone, place, times, settings, codes) {
 function turnsAt(zone, place, times, codes) {
   return inZone(zone, { sky: SKY }, ({ sky }, { place, times, codes }) => times.map((iso) => {
     const now = new Date(iso);
-    const turn = sky.turnAt(sky.readingsAt(codes, now, place), now);
+    const turn = sky.turnAt(sky.readingsAt(codes, now, () => place), now);
     const pad = (n) => (n < 10 ? '0' : '') + n;
     if (turn === null) { return null; }
     const d = new Date(turn);
@@ -72,8 +72,8 @@ test('south of the equator the moon\'s picture is the other way round, and its n
     const out = [];
     for (let d = 1; d <= 30; d += 1) {
       const now = new Date(2026, 10, d, 22);
-      const north = sky.iconOf('moon', sky.readingsAt(['moon'], now, { lat: 1, lon: 151 }), {});
-      const south = sky.iconOf('moon', sky.readingsAt(['moon'], now, { lat: -1, lon: 151 }), {});
+      const north = sky.iconOf('moon', sky.readingsAt(['moon'], now, () => ({ lat: 1, lon: 151 })), {});
+      const south = sky.iconOf('moon', sky.readingsAt(['moon'], now, () => ({ lat: -1, lon: 151 })), {});
       out.push([north, south]);
     }
     return out;
@@ -103,14 +103,24 @@ test('the Moon phase draws by its Look: the full moon beside the full moon\'s da
 
 test('only the slots shown are worked out', () => {
   const now = new Date(Date.UTC(2026, 10, 28, 12));
-  const moonOnly = skySlots.readingsAt(['moon'], now, BERLIN);
+  const moonOnly = skySlots.readingsAt(['moon'], now, () => BERLIN);
   assert.equal(moonOnly.twilight, null);
   assert.equal(moonOnly.dayLength, null);
   assert.equal(moonOnly.moon.phase, 5);
-  const sunOnly = skySlots.readingsAt(['twilight', 'dayLength'], now, BERLIN);
+  const sunOnly = skySlots.readingsAt(['twilight', 'dayLength'], now, () => BERLIN);
   assert.equal(sunOnly.moon, null);
   assert.equal(sunOnly.dayLength, 490);
   assert.equal(sunOnly.twilight.type, 'dusk');
+  // The place is read only for what needs it: the sun's slots, and the moon's picture only on a
+  // day whose moon swaps south of the equator (not the full moon of 24 Dec).
+  const readsFor = (codes, at) => {
+    let reads = 0;
+    skySlots.readingsAt(codes, at, () => { reads += 1; return BERLIN; });
+    return reads;
+  };
+  assert.equal(readsFor(['moon'], now), 1, 'a waning gibbous');
+  assert.equal(readsFor(['moon'], new Date(Date.UTC(2026, 11, 24, 12))), 0, 'the full moon');
+  assert.equal(readsFor(['twilight'], now) > 0, true);
   assert.deepEqual(skySlots.CODES, ALL);
   assert.ok(ALL.every(skySlots.isSky));
   assert.ok(!['sun', 'condition', 'city'].some(skySlots.isSky), 'Sunrise/sunset prints the forecast\'s sun events');

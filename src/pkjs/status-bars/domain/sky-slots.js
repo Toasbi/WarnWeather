@@ -26,39 +26,37 @@ function isSky(code) {
 /**
  * What the sun and moon slots of one bake read, each worked out once.
  * @typedef {Object} SkyReadings
- * @property {string[]} codes The slots the bake shows (of CODES).
- * @property {?{lat: number, lon: number}} position Where the sky is seen from; null before a
- *   place is known.
  * @property {?{type: string, date: ?Date}} twilight The next dawn or dusk (sun-events.js
  *   nextTwilight), while Dawn/dusk is shown and a place is known; else null.
  * @property {?number} dayLength Today's minutes from sunrise to sunset (dayLengthMinutes), while
  *   Day length is shown and a place is known; else null.
- * @property {?{phase: number, lit: number, fullDay: Date}} moon Tonight's phase (moon.js
- *   phaseOfDay), the share of the moon lit now (litShare) and the day of the next full moon
- *   (nextDayOf), while Moon phase is shown; else null. The moon needs no place.
+ * @property {?{phase: number, picture: number, lit: number, fullDay: Date}} moon Tonight's phase
+ *   (moon.js phaseOfDay), its picture as the place sees it (seenFrom), the share of the moon lit
+ *   now (litShare) and the day of the next full moon (nextDayOf), while Moon phase is shown; else
+ *   null. The moon needs no place: it is seen as the north sees it until one is known.
  */
 
 /**
  * @param {string[]} codes The sun and moon slots a bake shows (of CODES).
  * @param {Date} now The bake's instant.
- * @param {?{lat: number, lon: number}} position Where the sky is seen from, or null.
+ * @param {function(): ?{lat: number, lon: number}} place Reads where the sky is seen from (null
+ *   before a place is known), only for what needs it.
  * @returns {SkyReadings}
  */
-function readingsAt(codes, now, position) {
+function readingsAt(codes, now, place) {
     var nowMs = now.getTime();
-    var place = position || null;
+    var phase;
     /**
      * @param {string} code A CODES entry. @returns {boolean} Whether the bake shows it.
      */
     function shown(code) { return codes.indexOf(code) !== -1; }
+    var at = shown('twilight') || shown('dayLength') ? place() : null;
+    if (shown('moon')) { phase = moon.phaseOfDay(nowMs); }
     return {
-        codes: codes,
-        position: place,
-        twilight: shown('twilight') && place ? sunEvents.nextTwilight(now, place.lat, place.lon) : null,
-        dayLength: shown('dayLength') && place ? sunEvents.dayLengthMinutes(now, place.lat, place.lon) : null,
-        moon: shown('moon')
-            ? { phase: moon.phaseOfDay(nowMs), lit: moon.litShare(nowMs), fullDay: moon.nextDayOf(nowMs, moon.FULL) }
-            : null
+        twilight: shown('twilight') && at ? sunEvents.nextTwilight(now, at.lat, at.lon) : null,
+        dayLength: shown('dayLength') && at ? sunEvents.dayLengthMinutes(now, at.lat, at.lon) : null,
+        moon: shown('moon') ? { phase: phase, picture: moon.seenFrom(phase, place), lit: moon.litShare(nowMs),
+            fullDay: moon.nextDayOf(nowMs, moon.FULL) } : null
     };
 }
 
@@ -83,8 +81,8 @@ function textOf(code, sky, settings, cap, now) {
 /**
  * A sun and moon slot's icon. Dawn/dusk draws the one that comes next, the dusk until a place is
  * known. Day length draws the sun. The Moon phase's is slot-text.js moonIcon's: tonight's moon as
- * it is seen from the place (as the north sees it until a place is known), the full moon where it
- * shows the next full moon's day, and none in its Text look.
+ * the place sees it, the full moon where it shows the next full moon's day, and none in its Text
+ * look.
  * @param {string} code A CODES entry the readings were worked out for.
  * @param {SkyReadings} sky The bake's readings (readingsAt).
  * @param {Object} settings Clay settings blob.
@@ -95,7 +93,7 @@ function iconOf(code, sky, settings) {
         return sky.twilight && sky.twilight.type === 'dawn' ? catalog.ICONS.DAWN : catalog.ICONS.DUSK;
     }
     if (code === 'dayLength') { return catalog.ICONS.DAY_LENGTH; }
-    return slotText.moonIcon(sky.moon.phase, settings, Boolean(sky.position && sky.position.lat < 0));
+    return slotText.moonIcon(sky.moon.picture, settings);
 }
 
 /**

@@ -2048,7 +2048,7 @@ test('the list of every phase has a row per phase, its picture, name and short n
     ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous', 'Last quarter',
       'Waning crescent']);
   rows.forEach((r, phase) => {
-    const names = slotText.MOON_NAMES[phase];
+    const names = slotText.MOON_PHASES[phase];
     assert.ok(r.includes('>' + names.full + '</td>'), names.full + ': its name');
     assert.ok(r.includes('letter-spacing:.02em;">' + names.short + '</td>'), names.full + ': its short name');
   });

@@ -146,3 +146,15 @@ test('the next day a principal phase names counts today, even after its instant'
     moon.nextDayOf(new Date(2026, 1, 1, 12).getTime(), moon.FULL).getDate());
   assert.equal(helsinki, 2);
 });
+
+test('seenFrom: south of the equator the waxing and the waning phases swap pictures, read only for those', () => {
+  const reads = [];
+  const seen = (phase, at) => moon.seenFrom(phase, () => { reads.push(phase); return at; });
+  const SOUTH = { lat: -33.87, lon: 151.21 };
+  const NORTH = { lat: 52.52, lon: 13.40 };
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map((p) => seen(p, SOUTH)), [0, 7, 6, 5, 4, 3, 2, 1]);
+  assert.deepEqual(reads, [1, 2, 3, 5, 6, 7], 'the new and the full moon look the same everywhere: no place read');
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map((p) => seen(p, NORTH)), [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual([1, 5].map((p) => seen(p, null)), [1, 5], 'no place yet: as the north sees it');
+  assert.deepEqual([1, 5].map((p) => seen(p, { lat: 0, lon: 0 })), [1, 5], 'on the equator: as the north does');
+});

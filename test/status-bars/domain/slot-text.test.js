@@ -164,13 +164,16 @@ test('Day length prints hours and minutes: 24h when the sun never sets, 0h when 
     ['11h38', '8h10', '8h05', '1h00', '23h59', '24h', '0h']);
 });
 
-test('every moon phase has its name and a short form that fits an edge slot', () => {
-  assert.deepEqual(slotText.MOON_NAMES.map((n) => n.short),
+test('every moon phase has its name, a short form that fits an edge slot and its picture', () => {
+  assert.deepEqual(slotText.MOON_PHASES.map((n) => n.short),
     ['New', 'Wax cres', '1st qtr', 'Wax gib', 'Full', 'Wan gib', 'Last qtr', 'Wan cres']);
-  assert.deepEqual(slotText.MOON_NAMES.map((n) => n.full),
+  assert.deepEqual(slotText.MOON_PHASES.map((n) => n.full),
     ['New moon', 'Waxing crescent', 'First quarter', 'Waxing gibbous', 'Full moon', 'Waning gibbous',
       'Last quarter', 'Waning crescent']);
-  slotText.MOON_NAMES.forEach((n) => {
+  const I = catalog.ICONS;
+  assert.deepEqual(slotText.MOON_PHASES.map((n) => n.icon), [I.MOON_NEW, I.MOON_WAX_CRES, I.MOON_FIRST_QTR,
+    I.MOON_WAX_GIB, I.MOON_FULL, I.MOON_WAN_GIB, I.MOON_LAST_QTR, I.MOON_WAN_CRES], 'as the north sees each');
+  slotText.MOON_PHASES.forEach((n) => {
     assert.ok(Buffer.byteLength(n.short) <= EDGE, n.short);
     assert.ok(Buffer.byteLength(n.full) <= MID, n.full);
   });

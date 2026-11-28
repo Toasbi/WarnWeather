@@ -584,21 +584,14 @@ function showsItem(lines, settings, env, code) {
 
 /**
  * The sun and moon slots worked out on the phone (sky-slots.js CODES) that the given lines
- * show, each once.
+ * show.
  * @param {Array<Object>} lines catalog line definitions
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
- * @returns {string[]} In the lines' order.
+ * @returns {string[]} In CODES' order.
  */
 function shownSkyCodes(lines, settings, env) {
-  var out = [];
-  for (var l = 0; l < lines.length; l++) {
-    for (var s = 0; s < 3; s++) {
-      var code = slotCode(lines[l], s, settings, env);
-      if (skySlots.isSky(code) && out.indexOf(code) === -1) { out.push(code); }
-    }
-  }
-  return out;
+  return skySlots.CODES.filter(function (code) { return showsItem(lines, settings, env, code); });
 }
 
 /**
@@ -632,7 +625,7 @@ function placeOnce(facts) {
  */
 function skyReadings(lines, settings, env, now, place) {
   var codes = shownSkyCodes(lines, settings, env);
-  return codes.length ? skySlots.readingsAt(codes, now, place()) : null;
+  return codes.length ? skySlots.readingsAt(codes, now, place) : null;
 }
 
 /**

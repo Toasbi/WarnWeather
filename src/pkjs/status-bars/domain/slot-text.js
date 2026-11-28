@@ -333,18 +333,18 @@
 
     /**
      * The moon's eight phases by their index (moon.js phaseOfDay: new moon 0, first quarter 2,
-     * full moon 4, last quarter 6, the phases between them odd): the name and its short form,
-     * which fits an edge slot's 8 bytes.
+     * full moon 4, last quarter 6, the phases between them odd): the name, its short form, which
+     * fits an edge slot's 8 bytes, and the phase's picture as the north sees the moon.
      */
-    var MOON_NAMES = [
-        { full: 'New moon', short: 'New' },
-        { full: 'Waxing crescent', short: 'Wax cres' },
-        { full: 'First quarter', short: '1st qtr' },
-        { full: 'Waxing gibbous', short: 'Wax gib' },
-        { full: 'Full moon', short: 'Full' },
-        { full: 'Waning gibbous', short: 'Wan gib' },
-        { full: 'Last quarter', short: 'Last qtr' },
-        { full: 'Waning crescent', short: 'Wan cres' }
+    var MOON_PHASES = [
+        { full: 'New moon', short: 'New', icon: catalog.ICONS.MOON_NEW },
+        { full: 'Waxing crescent', short: 'Wax cres', icon: catalog.ICONS.MOON_WAX_CRES },
+        { full: 'First quarter', short: '1st qtr', icon: catalog.ICONS.MOON_FIRST_QTR },
+        { full: 'Waxing gibbous', short: 'Wax gib', icon: catalog.ICONS.MOON_WAX_GIB },
+        { full: 'Full moon', short: 'Full', icon: catalog.ICONS.MOON_FULL },
+        { full: 'Waning gibbous', short: 'Wan gib', icon: catalog.ICONS.MOON_WAN_GIB },
+        { full: 'Last quarter', short: 'Last qtr', icon: catalog.ICONS.MOON_LAST_QTR },
+        { full: 'Waning crescent', short: 'Wan cres', icon: catalog.ICONS.MOON_WAN_CRES }
     ];
 
     /**
@@ -380,26 +380,20 @@
         return settings && settings.moonSlotName === 'full' ? 'full' : 'short';
     }
 
-    /** The Moon phase's icons by the phase's index (MOON_NAMES' order), as the north sees the moon. */
-    var MOON_ICONS = [
-        catalog.ICONS.MOON_NEW, catalog.ICONS.MOON_WAX_CRES, catalog.ICONS.MOON_FIRST_QTR, catalog.ICONS.MOON_WAX_GIB,
-        catalog.ICONS.MOON_FULL, catalog.ICONS.MOON_WAN_GIB, catalog.ICONS.MOON_LAST_QTR, catalog.ICONS.MOON_WAN_CRES
-    ];
-
     /**
      * The Moon phase slot's icon: in its Text look the text-only id, which draws none; the full
      * moon where its Icon + text look shows the next full moon's day; else tonight's moon as the
-     * place sees it, its waxing and waning halves the other way round south of the equator.
-     * @param {number} phase Tonight's phase (moon.js phaseOfDay: MOON_NAMES' index).
+     * place sees it.
+     * @param {number} picture Tonight's moon as the place sees it (moon.js seenFrom: MOON_PHASES'
+     *   index).
      * @param {Object} settings Settings.
-     * @param {boolean} south Whether the moon is seen from south of the equator.
      * @returns {number} A catalog ICONS id.
      */
-    function moonIcon(phase, settings, south) {
+    function moonIcon(picture, settings) {
         var look = moonLook(settings);
         if (look === 'text') { return catalog.ICONS.MOON_TEXT; }
         if (look === 'both' && moonShows(settings) === 'full') { return catalog.ICONS.MOON_FULL; }
-        return MOON_ICONS[south ? (8 - phase) % 8 : phase];
+        return MOON_PHASES[picture].icon;
     }
 
     /**
@@ -436,7 +430,7 @@
     function moonText(moon, settings, cap, nowMs) {
         var look = moonLook(settings);
         var shows = moonShows(settings);
-        var names = MOON_NAMES[moon.phase];
+        var names = MOON_PHASES[moon.phase];
         if (look === 'icon') { return ''; }
         if (shows === 'lit') {
             return withUnit(Math.round(moon.lit * 100) + '%', look === 'text' ? ' lit' : '', cap);
@@ -645,8 +639,7 @@
         CLOCK_AHEAD_MS: CLOCK_AHEAD_MS,
         twilightText: twilightText,
         dayLengthText: dayLengthText,
-        MOON_NAMES: MOON_NAMES,
-        MOON_ICONS: MOON_ICONS,
+        MOON_PHASES: MOON_PHASES,
         moonIcon: moonIcon,
         moonLook: moonLook,
         moonShows: moonShows,

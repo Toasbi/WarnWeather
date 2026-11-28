@@ -74,7 +74,7 @@
         gust: {kph: [20, 45], mph: [12, 28], knots: [11, 24]},
         // The sun and moon slots (worked out on the phone, sky-slots.js): the dusk after the
         // Sunrise/sunset slot's sample sunset (19:14), a day of 12 h 38 min, and a waning gibbous
-        // moon (slot-text.js MOON_NAMES' 5), 89 % lit, three days after the full moon and 26 days
+        // moon (slot-text.js MOON_PHASES' 5), 89 % lit, three days after the full moon and 26 days
         // before the next.
         dusk: [19, 52],
         dayLength: 12 * 60 + 38,
@@ -108,13 +108,13 @@
      * @returns {?number} A catalog ICONS id; null for none.
      */
     function moonIconId(S) {
-        var id = slotText.moonIcon(SAMPLE.moon.phase, S, false);
+        var id = slotText.moonIcon(SAMPLE.moon.phase, S);
         return id === catalog.ICONS.MOON_TEXT ? null : id;
     }
 
     /**
      * The page's outline of a Moon phase picture (status-slot-icons.js).
-     * @param {number} id A catalog ICONS id of a phase (slot-text.js MOON_ICONS).
+     * @param {number} id A catalog ICONS id of a phase (slot-text.js MOON_PHASES icon).
      * @returns {?string} Its <svg>; null for an id that is no phase's.
      */
     function moonOutline(id) {

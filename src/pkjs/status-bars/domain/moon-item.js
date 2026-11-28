@@ -8,10 +8,10 @@
 //  - Days 'tomorrow' ("Today + tomorrow"): on the day before such a moon too, that moon with the
 //    tomorrow mark. With 'always' the day before a full or new moon shows that moon in place of
 //    tonight's. Today's moon always wins.
-// The picture is the moon as the place sees it: south of the equator its waxing and waning
-// halves swap (sky-slots.js iconOf does the same for the Moon phase slot), and the place is read
-// only for a picture that swaps. The day's moon changes at local midnight (turnAt), when
-// status-rebake.js bakes again between fetches.
+// The picture is the moon as the place sees it (moon.js seenFrom, as for the Moon phase slot):
+// south of the equator its waxing and waning halves swap, and the place is read only for a
+// picture that swaps. The day's moon changes at local midnight (turnAt), when status-rebake.js
+// bakes again between fetches.
 //
 // Phone-only: moon.js, which the settings page does not load. Pure; ES5 only (aplite PKJS,
 // though aplite has no On demand).
@@ -43,12 +43,10 @@ var NAMED = {
  * @param {number} phase A phase (moon.js phaseOfDay).
  * @param {?string} mark Its mark, null for today's.
  * @param {function(): ?{lat: number, lon: number}} place Reads where the sky is seen from.
- * @returns {ShownMoon} The phase as the place sees it: the new and the full moon look the same
- *   everywhere, so only another phase reads the place.
+ * @returns {ShownMoon} The phase as the place sees it (moon.js seenFrom).
  */
 function seen(phase, mark, place) {
-    var at = phase % 4 !== 0 ? place() : null;
-    return { picture: at && at.lat < 0 ? (8 - phase) % 8 : phase, mark: mark };
+    return { picture: moon.seenFrom(phase, place), mark: mark };
 }
 
 /**

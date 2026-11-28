@@ -15,7 +15,7 @@ const ICONS = require('../../../src/pkjs/page/status-bars/status-slot-icons.js')
 // icon), and the rest of the slot items the watch draws a glyph for.
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze', 'moon',
   'temp', 'dew', 'countdown', 'phoneBattery', 'distance', 'steps', 'sleep', 'hr', 'sun', 'twilight', 'dayLength'];
-// The Moon phase slot's pictures, its eight phases from the new moon (slot-text.js MOON_ICONS'
+// The Moon phase slot's pictures, its eight phases from the new moon (slot-text.js MOON_PHASES'
 // order), as the north sees them.
 const MOON_PHASES = ['moonNew', 'moonWaxCres', 'moonFirstQtr', 'moonWaxGib', 'moonFull', 'moonWanGib', 'moonLastQtr',
   'moonWanCres'];
@@ -131,10 +131,10 @@ test('every slot item the watch draws a glyph for has the page copy, and no othe
   assert.equal(slotIcon('moon', basalt, { moonSlotLook: 'text' }), null, 'the Text look: none');
 });
 
-test('the Moon phase\'s pictures are the phases in slot-text.js MOON_ICONS\' order, the lit part filled', () => {
+test('the Moon phase\'s pictures are the phases in slot-text.js MOON_PHASES\' order, the lit part filled', () => {
   const slotText = require('../../../src/pkjs/status-bars/domain/slot-text.js');
   const { moonOutline } = require('../../../src/pkjs/page/status-bars/preview-status-bars.js');
-  assert.deepEqual(slotText.MOON_ICONS.map(moonOutline), MOON_PHASES.map((id) => ICONS[id]));
+  assert.deepEqual(slotText.MOON_PHASES.map((p) => moonOutline(p.icon)), MOON_PHASES.map((id) => ICONS[id]));
   assert.equal(moonOutline(require('../../../src/pkjs/status-bars/domain/status-line-catalog.js').ICONS.MOON_TEXT),
     null, 'the Text look\'s id has no picture');
   // As the watch draws them: the new moon a dotted ring, the full moon filled, the others the

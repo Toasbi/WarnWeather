@@ -3,8 +3,7 @@
 // The moon's phase from the clock alone, after Meeus, Astronomical Algorithms (2nd ed.): 48.4
 // for the phase angle and the lit share, 49 for the instants of the principal phases (new
 // moon, first quarter, full moon, last quarter). No position is needed: the phase is the same
-// everywhere at one instant, and only its picture is mirrored south of the equator (the caller's
-// part).
+// everywhere at one instant, and only its picture is mirrored south of the equator (seenFrom).
 //
 // A principal phase names the whole local day that holds its instant, and the four phases
 // between them name the days between, so a phase changes only at midnight: 'Full' is the day a
@@ -20,11 +19,10 @@ var DELTA_T_MS = 69 * 1000;
 var JDE_K0 = 2451550.09766;
 var SYNODIC_DAYS = 29.530588861;
 
-// The eight phases in order, by their index: the principal ones are the even indices.
+// The eight phases in order, by their index: the principal ones are the even indices, new moon
+// 0, first quarter 2, full moon 4 and last quarter 6.
 var NEW = 0;
-var FIRST_QUARTER = 2;
 var FULL = 4;
-var LAST_QUARTER = 6;
 
 // Meeus 49's periodic terms: [coefficient, power of E, multiples of M, M', F and Ω]. New and full
 // moon share the arguments; their first seven coefficients differ (NEW_FULL_LEAD).
@@ -178,7 +176,7 @@ function phaseOfDay(ms) {
  * The start of the first local day, from the one holding a moment on, that a principal phase
  * names.
  * @param {number} ms A moment, epoch milliseconds.
- * @param {number} phase The principal phase: NEW, FIRST_QUARTER, FULL or LAST_QUARTER.
+ * @param {number} phase The principal phase: NEW (0), 2, FULL (4) or 6.
  * @returns {Date} That day's local midnight.
  */
 function nextDayOf(ms, phase) {
@@ -191,15 +189,28 @@ function nextDayOf(ms, phase) {
     return new Date(instant.getFullYear(), instant.getMonth(), instant.getDate());
 }
 
+/**
+ * The moon as a place sees it: south of the equator its lit side is the other one, so the
+ * waxing and the waning phases swap pictures. The new and the full moon look the same
+ * everywhere, so only another phase reads the place.
+ * @param {number} phase A phase (phaseOfDay).
+ * @param {function(): ?{lat: number}} place Reads where the moon is seen from; null before a
+ *   place is known: the moon is then seen as the north sees it.
+ * @returns {number} The phase whose picture shows it there, 0 new moon .. 7 waning crescent.
+ */
+function seenFrom(phase, place) {
+    var at = phase % 4 !== 0 ? place() : null;
+    return at && at.lat < 0 ? (8 - phase) % 8 : phase;
+}
+
 var api = {
     NEW: NEW,
-    FIRST_QUARTER: FIRST_QUARTER,
     FULL: FULL,
-    LAST_QUARTER: LAST_QUARTER,
     litShare: litShare,
     principalInstant: principalInstant,
     phaseOfDay: phaseOfDay,
-    nextDayOf: nextDayOf
+    nextDayOf: nextDayOf,
+    seenFrom: seenFrom
 };
 
 module.exports = api;
