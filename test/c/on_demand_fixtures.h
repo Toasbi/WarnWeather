@@ -114,7 +114,7 @@ static inline OdSideIn side_none(void) {
 }
 
 // Append an item. Callers add them in ascending rank, as the watch does: the gap
-// before an item is read off its rank (on_demand.c item_gap). w0/w1/w2 are its lanes.
+// between two items is read off their ranks (on_demand.c item_gap). w0/w1/w2 are its lanes.
 static inline void add(OdSideIn *s, int rank, int16_t w0, int16_t w1, int16_t w2) {
     int i = s->n++;
     s->rank[i] = (uint8_t)rank;

@@ -826,6 +826,11 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
     return read_present_blob(THRESHOLD_SETTINGS, buffer, buffer_size);
 }
 
+// Past 48 B the blob outgrows a status line: the compare buffer must take it whole, or every
+// save would skip the compare and write flash.
+_Static_assert(THRESH_SETTINGS_BYTES <= SIZED_COMPARE_BYTES,
+               "the thresholds blob must fit the sized blob compare buffer");
+
 bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
     return write_sized_data_if_changed(THRESHOLD_SETTINGS, data, len);
 }

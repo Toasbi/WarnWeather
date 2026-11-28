@@ -68,6 +68,8 @@ typedef struct {
     // only the cache struct.
     StatusOnDemandCache *cache;
     bool assigned;   // an item sits on a side of this bar, as of the last refresh
+    bool ticks;      // one of them is refreshed on the minute tick (on_demand.h
+                     // od_item_ticks: every item but the Moon phase)
 } StatusOnDemandRow;
 
 // Free the glyph cache and every glyph it holds; a row without one is left as is.
@@ -75,12 +77,14 @@ void status_on_demand_release(StatusOnDemandRow *row);
 
 // Refresh-time: read which items sit on `bar` (a ThreshBar) from `blob` (the
 // thresholds settings blob, normalized: status_threshold_normalize), set
-// row->assigned, and fold the items' inputs into the row's signature. The row signs
-// the blob; this signs the rest the items paint from: the stored entries tuple and
-// their live state. The rain alert is re-derived from the radar cache on every call
-// (O(1), flash-free), which is why a bar with items is refreshed on the minute tick.
+// row->assigned and row->ticks, and fold the items' inputs into the row's signature.
+// The row signs the blob; this signs the rest the items paint from: the stored entries
+// tuple and their live state. `levels` is the pass's levels word
+// (persist_get_status_levels), the Moon phase's moon in its top bits. The rain alert is
+// re-derived from the radar cache on every call (O(1), flash-free), which is why a bar
+// with items is refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t blob[THRESH_SCRATCH_BYTES]);
+                               const uint8_t blob[THRESH_SCRATCH_BYTES], int levels);
 
 // What the row hands the layout and the paint, in absolute coordinates in the row's
 // layer.
@@ -115,6 +119,8 @@ typedef struct {
                                                // while it shows (on_demand.h)
     uint8_t moon_day;                          // the Moon phase's day code, while it
                                                // shows (on_demand.h od_moon_of)
+    bool ticks;                                // an item that ticks sits on this bar
+                                               // (StatusOnDemandRow.ticks)
 } StatusOnDemandState;
 
 // One draw's On demand pass, filled by status_on_demand_layout() and read by
@@ -130,10 +136,11 @@ typedef struct {
 } StatusOnDemandPass;
 
 // Draw-time, first: which items of `bar` (a ThreshBar; -1 none) are active and what
-// they show, into the pass, read from `blob` as status_on_demand_fold() reads it. A
-// row with no item assigned collects nothing, so none of its slots merges an alert.
+// they show, into the pass, read from `blob` and `levels` as status_on_demand_fold()
+// reads them. A row with no item assigned collects nothing, so none of its slots merges
+// an alert.
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]);
+                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES], int levels);
 
 // After status_on_demand_collect(), for slot `i` (0 left, 1 middle, 2 right) of the
 // draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert it

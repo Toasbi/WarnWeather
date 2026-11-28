@@ -728,7 +728,60 @@ static void slots_back_pins(void) {
     }
 }
 
+// --- the gaps between items ---------------------------------------------------------
+
+// The air between two items is the padded gap beside a boxed alert, on either side of it:
+// the Moon phase, unboxed, ranks after the alerts, and keeps OD_PADDED_GAP from a boxed
+// alert before it as the alert does from the item before it; two unboxed items keep
+// OD_ITEM_GAP. On both sides, in the drawn x and in the side's claim.
+static void gaps_beside_a_box(void) {
+    const OdSlotIn slots[3] = { slot_empty(), slot_text(40, 0), slot_empty() };
+    for (int d = 0; d < 2; d++) {
+        char name[40];
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[d], OD_BLUETOOTH, 10);
+        add_icon(&sides[d], OD_WIND, 20);
+        add_icon(&sides[d], OD_MOON, 12);
+        OdLayout out;
+        od_layout(144, slots, sides, NO_BLEED, 0, &out);
+        snprintf(name, sizeof(name), "gaps.side%d.n", d);
+        expect(name, out.n[d], 3);
+        // Each item's near edge from the bar's edge, whichever side it is on.
+        const int16_t w[3] = { 10, 20, 12 };
+        int16_t at[3];
+        for (int i = 0; i < 3; i++) {
+            at[i] = d ? (int16_t)(144 - out.item_x[d][i] - w[i]) : out.item_x[d][i];
+        }
+        snprintf(name, sizeof(name), "gaps.side%d.bt_to_wind", d);
+        expect(name, at[1] - (at[0] + w[0]), OD_PADDED_GAP);
+        snprintf(name, sizeof(name), "gaps.side%d.wind_to_moon", d);
+        expect(name, at[2] - (at[1] + w[1]), OD_PADDED_GAP);
+        OdSideIn plain[2] = { side_none(), side_none() };
+        add_icon(&plain[d], OD_BLUETOOTH, 10);
+        add_icon(&plain[d], OD_MOON, 12);
+        od_layout(144, slots, plain, NO_BLEED, 0, &out);
+        const int16_t bt = d ? (int16_t)(144 - out.item_x[d][0] - 10) : out.item_x[d][0];
+        const int16_t moon = d ? (int16_t)(144 - out.item_x[d][1] - 12) : out.item_x[d][1];
+        snprintf(name, sizeof(name), "gaps.side%d.bt_to_moon", d);
+        expect(name, moon - (bt + 10), OD_ITEM_GAP);
+    }
+    // The claim: the middle text fits between two runs of Wind and the moon, 20 + 2 + 12 a
+    // side with the group gap beside each, exactly at this width, so it stays in view.
+    OdSideIn both[2] = { side_none(), side_none() };
+    for (int d = 0; d < 2; d++) {
+        add_icon(&both[d], OD_WIND, 20);
+        add_icon(&both[d], OD_MOON, 12);
+    }
+    const int run = 20 + OD_PADDED_GAP + 12;
+    OdLayout fit;
+    od_layout((int16_t)(2 * (run + STATUS_ROW_GROUP_GAP) + 40), slots, both, NO_BLEED, 0, &fit);
+    expect("gaps.claim.mid_shown", fit.place[1].visible, 1);
+    expect("gaps.claim.left_n", fit.n[0], 2);
+    expect("gaps.claim.right_n", fit.n[1], 2);
+}
+
 int main(void) {
+    gaps_beside_a_box();
     far_slot_is_plain();
     two_sides_share_the_middle();
     two_sides_drop_lowest_priority();

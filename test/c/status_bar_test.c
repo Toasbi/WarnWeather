@@ -180,10 +180,10 @@ uint8_t status_row_live_health(const StatusRow *row) {
 #endif
 
 #if defined(WW_ON_DEMAND)
-static bool s_uses_on_demand[STATUS_LINE_COUNT];
+static bool s_ticks_on_demand[STATUS_LINE_COUNT];
 
-bool status_row_uses_on_demand(const StatusRow *row) {
-    return row && s_uses_on_demand[row->line_id];
+bool status_row_ticks_on_demand(const StatusRow *row) {
+    return row && s_ticks_on_demand[row->line_id];
 }
 #endif
 
@@ -391,7 +391,7 @@ static void live_health_gate(void) {
 static void tick_on_demand_refreshes_visible_item_bars(void) {
     Layer parent = {0};
     s_refresh_changed = true;
-    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_ticks_on_demand, 0, sizeof(s_ticks_on_demand));
     memset(s_live_health, 0, sizeof(s_live_health));
 
     ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
@@ -404,7 +404,7 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
     status_bar_tick_on_demand();
     expect_int("on_demand.no_slot_no_refresh", s_refresh_count[fc], 0);
 
-    s_uses_on_demand[fc] = true;
+    s_ticks_on_demand[fc] = true;
     reset_records();
     status_bar_tick_on_demand();
     expect_int("on_demand.visible_refreshed", s_refresh_count[fc], 1);
@@ -436,7 +436,7 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
 #endif
 
     status_bar_destroy_all();
-    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_ticks_on_demand, 0, sizeof(s_ticks_on_demand));
 }
 
 // A battery or Bluetooth change (status_bar_system_changed) reaches every visible bar, so a
@@ -446,7 +446,7 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
 static void system_change_refreshes_every_visible_bar(void) {
     Layer parent = {0};
     s_refresh_changed = true;
-    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_ticks_on_demand, 0, sizeof(s_ticks_on_demand));
     memset(s_live_health, 0, sizeof(s_live_health));
 
     ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
@@ -648,12 +648,12 @@ static void extra_bars_are_bars_too(void) {
     status_bar_refresh_live_health();
     expect_int("extra.live_health_refreshed", s_refresh_count[b6] >= 1 && s_refresh_count[b5] == 0, 1);
     // On demand: a shown bar with items refreshes on the tick, a hidden one does not.
-    s_uses_on_demand[b4] = true;
-    s_uses_on_demand[b5] = true;
+    s_ticks_on_demand[b4] = true;
+    s_ticks_on_demand[b5] = true;
     reset_records();
     status_bar_tick_on_demand();
     expect_int("extra.on_demand_tick", s_refresh_count[b4] == 1 && s_refresh_count[b5] == 0, 1);
-    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
+    memset(s_ticks_on_demand, 0, sizeof(s_ticks_on_demand));
     // Bar 5 takes the lower band when a view puts it there.
     ViewSpec five = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_BAR5, LAYOUT_TIER_FULL);
     status_bar_apply_view(&five, &L);

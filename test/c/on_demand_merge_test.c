@@ -616,10 +616,15 @@ static void merged_inside_half_keeps_all(void) {
             // The merged alert is out of the run while its slot shows (one plain shows).
             const int skip = d == m && own_w > 0 ? mi : -1;
             int run = 0;
+            int prev = -1;
             for (int i = 0; i < s->n; i++) {
                 if (i == skip) { continue; }
-                if (run) { run += od_item_boxed(s->rank[i]) ? OD_PADDED_GAP : OD_ITEM_GAP; }
+                if (run) {
+                    run += od_item_boxed(s->rank[prev]) || od_item_boxed(s->rank[i])
+                        ? OD_PADDED_GAP : OD_ITEM_GAP;
+                }
                 run += s->w[0][i];
+                prev = i;
             }
             int claim = own_w > 0 ? own_w + STATUS_ROW_GROUP_GAP + run : run - bleed[d];
             if (claim < 0) { claim = 0; }

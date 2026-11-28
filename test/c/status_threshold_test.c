@@ -172,8 +172,9 @@ static void normalize_tests(void) {
     // A 49-B blob is read exactly as stored.
     expect("norm.full_as_stored", memcmp(load(blob, THRESH_SETTINGS_BYTES), blob,
                                          THRESH_SETTINGS_BYTES), 0);
-    // A pre-moon 48-B blob too, all but the Moon phase's cell byte, which it lacks: the
-    // moon on no bar. No default, no derived warn look, no Battery byte fills in.
+    // A pre-moon 48-B blob too, all but the Moon phase's cell byte, which it lacks: that
+    // takes the compiled default, the moon on no bar. No other default, no derived warn
+    // look, no Battery byte fills in.
     const uint8_t *pre_moon = load(blob, THRESH_SETTINGS_BYTES_PRE_MOON);
     expect("norm.pre_moon_keeps", memcmp(pre_moon, blob, THRESH_SETTINGS_BYTES_PRE_MOON), 0);
     expect("norm.pre_moon_cell", pre_moon[THRESH_ON_DEMAND_OFFSET + OD_MOON], 0);

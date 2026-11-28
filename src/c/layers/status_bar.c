@@ -235,14 +235,14 @@ void status_bar_refresh_live_health(void) {
 #endif
 
 #if defined(WW_ON_DEMAND)
-// Refresh the visible bars: all of them, or those with On demand items. Visible = not
-// hidden: status_bar_apply_view wrote the flag from the view on screen. refresh_row
-// repaints only on a signature change, so a quiet minute (no rain, or an icon-only rain
-// look) costs the refresh and nothing else.
+// Refresh the visible bars: all of them, or those with On demand items that tick
+// (status_row_ticks_on_demand). Visible = not hidden: status_bar_apply_view wrote the
+// flag from the view on screen. refresh_row repaints only on a signature change, so a
+// quiet minute (no rain, or an icon-only rain look) costs the refresh and nothing else.
 static void refresh_visible(bool all) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
-        if (b->row && (all || status_row_uses_on_demand(b->row)) && !layer_get_hidden(b->layer)) {
+        if (b->row && (all || status_row_ticks_on_demand(b->row)) && !layer_get_hidden(b->layer)) {
             refresh_row((StatusBarId) i);
         }
     }

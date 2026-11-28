@@ -165,12 +165,6 @@ test('the Battery byte and the On demand cells close the 49-B blob', () => {
   assert.match(onDemand, /OD_ITEM_COUNT = 11/);
   assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET \+ OD_ITEM_COUNT/);
   assert.match(header, /_Static_assert\(THRESH_SETTINGS_BYTES_PRE_MOON == THRESH_ON_DEMAND_OFFSET \+ OD_MOON/);
-  // Past 48 B the blob outgrows a status line: persist's no-op-write compare buffer takes
-  // the longer of the two, or every save would skip the compare and write flash.
-  const persistC = fs.readFileSync(
-    path.join(__dirname, '..', '..', '..', 'src', 'c', 'appendix', 'persist.c'), 'utf8');
-  assert.match(persistC, /#define SIZED_COMPARE_BYTES \(THRESH_SETTINGS_BYTES > STATUS_LINE_MAX_BYTES \\\s*\? THRESH_SETTINGS_BYTES : STATUS_LINE_MAX_BYTES\)/);
-  assert.match(persistC, /write_sized_data_if_changed\([^)]*\) \{\s*uint8_t current\[SIZED_COMPARE_BYTES\];/);
 });
 
 // The alert entries name their kind by ThreshKind in 3 bits (alert_set.h,

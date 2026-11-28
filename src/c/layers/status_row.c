@@ -516,8 +516,8 @@ uint8_t status_row_live_health(const StatusRow *row) {
 }
 #endif
 
-bool status_row_uses_on_demand(const StatusRow *row) {
-    return row && row->od.assigned;
+bool status_row_ticks_on_demand(const StatusRow *row) {
+    return row && row->od.ticks;
 }
 
 // The health reading a slot kind shows (health_summary.h HEALTH_SUMMARY_*), 0 for a
@@ -559,7 +559,7 @@ bool status_row_refresh(StatusRow *row) {
     sig = sig_fold(sig, s_thresh_scratch, thresh_bytes_of(row->line_id));
     // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
-                                s_thresh_scratch);
+                                s_thresh_scratch, s_levels_word);
     // All three slots, always — including the ones On demand may move, shorten or
     // hide at paint time: how the slots make room is a paint decision (it depends on
     // measured widths), not a content rule, and a signature describing only part of
@@ -785,7 +785,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // The bar's On demand items first: a slot that merged a weather alert is resolved
     // at the alert's level, so it measures with the font it is drawn in.
     const int8_t bar = (int8_t)status_threshold_bar_of_line(row->line_id);
-    status_on_demand_collect(&row->od, &s_od_pass, bar, s_thresh_scratch);
+    status_on_demand_collect(&row->od, &s_od_pass, bar, s_thresh_scratch, s_levels_word);
     // Whether the watch charges, as the battery glyph draws it (battery_draw.c): its bolt
     // lane is empty otherwise, and the Icon + text look reserves none for it.
     const BatteryChargeState batt = watch_services_battery_state();

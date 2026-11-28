@@ -503,10 +503,15 @@ static void moon_tests(void) {
     expect("moon.not_metric", od_item_is_metric(OD_MOON), 0);
     expect("moon.not_boxed", od_item_boxed(OD_MOON), 0);
     expect("moon.text_first", od_item_text_first(OD_MOON), 1);
+    // The moon changes only with the levels word, which refreshes every bar: a bar with no
+    // other item skips the minute tick. Every other item ticks, as before the moon.
+    expect("moon.no_tick", od_item_ticks(OD_MOON), 0);
     for (int item = 0; item < OD_MOON; item++) {
         char name[32];
         snprintf(name, sizeof(name), "moon.item%d.text_after", item);
         expect(name, od_item_text_first(item), 0);
+        snprintf(name, sizeof(name), "moon.item%d.ticks", item);
+        expect(name, od_item_ticks(item), 1);
     }
     expect("moon.days", OD_MOON_DAYS, STATUS_ALERT_MARK_NONE + 1);
     // Every value of the six bits: 0 and past the last day none, the rest one moon each.

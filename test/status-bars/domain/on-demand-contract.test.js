@@ -134,8 +134,7 @@ test('the Moon phase\'s 6 bits of the levels word: one shift, one mask, one set 
     });
   }
   assert.equal(seen.size, 8 * (OD.NEXT_DAY_MARKS.length + 1), 'every picture and day apart');
+  // The watch reads exactly 1 .. 8 x OD_MOON_DAYS (test/c/alert_set_test.c moon_tests).
   assert.equal(Math.max.apply(null, Array.from(seen)), 8 * (OD.NEXT_DAY_MARKS.length + 1),
     'the largest value is od_moon_of\'s last valid one (8 x OD_MOON_DAYS)');
-  assert.match(onDemandH, /if \(v == 0 \|\| v > 8 \* OD_MOON_DAYS\) \{ return false; \}/,
-    'the watch reads 1 .. 8 x OD_MOON_DAYS, none outside');
 });

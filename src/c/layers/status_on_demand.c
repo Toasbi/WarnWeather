@@ -29,8 +29,10 @@
 // system glyphs and Heavy rain their in-memory ids (status_icon_size.h); the rain alert's glyph
 // is its bucket's (status_rain_glyph), so drizzle -> rain swaps the glyph, and a Rain alert
 // shares the condition icon's drawing; the Moon phase item shares the Moon phase slot's.
-// Quiet time, one Bluetooth variant, rain, the five metric kinds and the moon.
+// Quiet time, one Bluetooth variant, rain, the five metric kinds and the moon: every item
+// but the drawn Battery and Sleep.
 #define GLYPH_SLOTS 9
+_Static_assert(GLYPH_SLOTS == OD_ITEM_COUNT - 2, "one glyph slot per item with a glyph");
 
 struct StatusOnDemandCache {
     GDrawCommandImage *images[GLYPH_SLOTS];
@@ -120,20 +122,23 @@ static GDrawCommandImage *image_for(const StatusOnDemandCache *cache, uint8_t ke
 // the battery state (the Battery item's charge, and whether the slots' battery glyph keeps
 // its bolt lane), only what an assigned item needs is read — the link for Bluetooth, the
 // radar cache for Rain, the entries for a metric alert, the levels word for the Moon phase
-// — so a bar without items costs a cell read per item and a battery peek.
+// — so a bar without items costs a cell read per item and a battery peek. The moon comes
+// from `levels`, the pass's levels word.
 // The rain alert comes from the cache rain_countdown_refresh() keeps, every pass —
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
 // app_message.c has already checked it with alert_set_bytes_ok). Returns the tuple
 // bytes read into s->bytes: 0 when none is stored, or the bar has no metric item; -1
 // when the bar has no item at all.
-static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
+static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SCRATCH_BYTES],
+                   int levels) {
     memset(&s->set, 0, sizeof(s->set));
     memset(s->key, 0, sizeof(s->key));
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->battery_value = false;
     s->rain_replaces = status_threshold_rain_replaces(blob);
     s->moon_day = 0;
+    s->ticks = false;
     BatteryChargeState bs = watch_services_battery_state();
     s->charge = bs.charge_percent;
     s->charging = bs.is_charging || bs.is_plugged;
@@ -141,7 +146,10 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
         s->active[item] = false;
-        if (s->side[item] != OD_SIDE_NONE) { assigned |= od_item_is_metric(item) ? 3 : 1; }
+        if (s->side[item] != OD_SIDE_NONE) {
+            assigned |= od_item_is_metric(item) ? 3 : 1;
+            s->ticks |= od_item_ticks(item);
+        }
     }
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
         s->battery_value = status_threshold_battery_value(blob);
@@ -171,7 +179,7 @@ static int collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SC
         // The phone baked the day's moon into the levels word, which it judges with the
         // levels (status_threshold.h).
         OdMoon moon;
-        s->active[OD_MOON] = od_moon_of(persist_get_status_levels(), &moon);
+        s->active[OD_MOON] = od_moon_of(levels, &moon);
         if (s->active[OD_MOON]) {
             s->key[OD_MOON] = (uint8_t)(STATUS_ICON_MOON_NEW + moon.picture);
             s->moon_day = moon.day;
@@ -265,10 +273,11 @@ static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
 // active, and the minutes and whether it rains only while the rain look prints them,
 // or an idle Battery or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t blob[THRESH_SCRATCH_BYTES]) {
+                               const uint8_t blob[THRESH_SCRATCH_BYTES], int levels) {
     StatusOnDemandState s;
-    const int n = collect(&s, bar, blob);
+    const int n = collect(&s, bar, blob, levels);
     row->assigned = n >= 0;
+    row->ticks = s.ticks;
     if (n < 0) {
         // Nothing can draw here: give the glyphs back now rather than at teardown.
         status_on_demand_release(row);
@@ -278,7 +287,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     const bool batt = s.active[OD_BATTERY];
     const bool rain = s.active[OD_RAIN];
     const bool text = rain && s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-    uint8_t live[12] = { (uint8_t)batt, s.key[OD_BLUETOOTH], (uint8_t)s.active[OD_QUIET_TIME],
+    uint8_t live[] = { (uint8_t)batt, s.key[OD_BLUETOOTH], (uint8_t)s.active[OD_QUIET_TIME],
                          (uint8_t)s.active[OD_SLEEP], (uint8_t)rain,
                          batt ? s.charge : 0, (uint8_t)(batt && s.charging),
                          rain ? s.rain.bucket : 0, text ? s.rain.mins : 0,
@@ -339,9 +348,9 @@ static void measure_family(Families *f, int i, const StatusRowSlot *slot,
 }
 
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES]) {
+                              int bar, const uint8_t blob[THRESH_SCRATCH_BYTES], int levels) {
     if (row->assigned && bar >= 0) {
-        collect(&pass->state, bar, blob);
+        collect(&pass->state, bar, blob, levels);
     } else {
         memset(&pass->state.set, 0, sizeof(pass->state.set));   // no slot merges an alert
     }

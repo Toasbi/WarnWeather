@@ -89,6 +89,13 @@ static inline bool od_item_text_first(int item) {
     return item == OD_MOON;
 }
 
+// Whether a bar holding `item` is refreshed on the minute tick (status_row_ticks_on_demand):
+// every item but the Moon phase, whose moon changes only with the levels word, which
+// refreshes every bar as it arrives (app_message.c).
+static inline bool od_item_ticks(int item) {
+    return item != OD_MOON;
+}
+
 // The Moon phase item: bits 10-15 of the status levels word (STATUS_LEVELS_UINT8,
 // status_threshold.h), which the phone bakes for the day. 0 while there is no moon to show
 // (the item sits on no bar, or the day is none its Show names); else 1 + the moon's picture

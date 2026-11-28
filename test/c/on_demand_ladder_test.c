@@ -307,12 +307,13 @@ static void looks_come_back(void) {
 // --- random inputs ----------------------------------------------------------------
 
 // A two-sided bar for the invariants between the sides: one side from the system
-// items and rain, the other from the metric alerts, either way round.
+// items and rain, the other from the metric alerts and the Moon phase after them,
+// either way round.
 static void random_two_sided(OdSlotIn slots[3], OdSideIn sides[2], int8_t bleed[2],
                              int16_t *w) {
     for (int i = 0; i < 3; i++) { slots[i] = random_slot(); }
     sides[0] = random_side(OD_BLUETOOTH, OD_RAIN);
-    sides[1] = random_side(OD_GUST, OD_WIND);
+    sides[1] = random_side(OD_GUST, OD_MOON);
     if (rnd(2)) {
         const OdSideIn left = sides[0];
         sides[0] = sides[1];

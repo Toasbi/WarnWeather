@@ -12,7 +12,7 @@
 // reconciled here already. It changed status_row.h in three ways:
 //  - the takeover's hooks (status_row_set_suppress_edges /
 //    status_row_right_slot_width) left it, so their no-op stubs left this twin;
-//  - On demand's interface (status_row_uses_on_demand) is declared only under
+//  - On demand's interface (status_row_ticks_on_demand) is declared only under
 //    WW_ON_DEMAND, which aplite never defines, so this twin answers none of it;
 //  - status_row_set_battery_override is declared only under !WW_ON_DEMAND: the base
 //    shows a low charge through the On demand Battery item and dropped the override,

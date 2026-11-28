@@ -42,12 +42,13 @@ void status_row_set_battery_override(StatusRow *row, bool active);
 // with none active the bar draws exactly as without the feature. A refresh that
 // finds nothing assigned frees the glyph cache.
 //
-// True while an item sits on this row's bar (as of its last refresh). The items'
-// states — Quiet time, the rain countdown — are re-derived on every refresh and have
-// no event of their own, so the owner of a row that answers true refreshes it on the
-// minute tick and after a radar rescan (status_bar_tick_on_demand; the top strip's
-// own tick).
-bool status_row_uses_on_demand(const StatusRow *row);
+// True while an item sits on this row's bar (as of its last refresh) that is refreshed on
+// the minute tick: every item but the Moon phase. The items' states — Quiet time, the rain
+// countdown — are re-derived on every refresh and have no event of their own, so the owner
+// of a row that answers true refreshes it on the minute tick and after a radar rescan
+// (status_bar_tick_on_demand; the top strip's own tick). The Moon phase's moon changes
+// only with the levels word, which refreshes every bar as it arrives (app_message.c).
+bool status_row_ticks_on_demand(const StatusRow *row);
 
 // A slot text's width in `font`, measured as the row measures its slots: in a
 // content_w x h box with the trailing ellipsis; 0 for "" or an empty box. On demand

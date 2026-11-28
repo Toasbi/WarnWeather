@@ -89,8 +89,8 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Four exact lengths, never a range: the pre-alerts 34, the 16-kind 33 and the
-    // pre-bold 29 are readable because every widening since 29 appended (see
+    // Five exact lengths, never a range: the pre-moon 48, the pre-alerts 34, the 16-kind 33
+    // and the pre-bold 29 are readable because every widening since 29 appended (see
     // status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
@@ -125,11 +125,16 @@ void status_threshold_normalize(uint8_t blob[THRESH_SETTINGS_BYTES], int stored_
     const size_t keep = (stored_len > 0
         && status_threshold_settings_validate(blob, (size_t)stored_len)) ? (size_t)stored_len : 0;
     if (keep == THRESH_SETTINGS_BYTES) { return; }
+    // A blob with On demand cells lacks only the cells of the items added after it (every
+    // widening since the cells appends one): they take the compiled defaults.
+    if (keep > THRESH_ON_DEMAND_OFFSET) {
+        memcpy(blob + keep, OD_DEFAULT_TOP + (keep - THRESH_ON_DEMAND_OFFSET),
+               THRESH_SETTINGS_BYTES - keep);
+        return;
+    }
     // Everything the stored bytes lack reads 0: no enable bit, no health pair, the
-    // default bold ladder, the rain look Text, no warn box, the Moon phase on no bar.
+    // default bold ladder, the rain look Text, no warn box.
     memset(blob + keep, 0, THRESH_SETTINGS_BYTES - keep);
-    // A pre-moon blob lacks only the Moon phase's cell byte: the rest is as stored.
-    if (keep == THRESH_SETTINGS_BYTES_PRE_MOON) { return; }
     if (keep == 0) {
         // Nothing stored: no colour either — the opaque-white fallback.
         memset(blob + THRESH_COLORS_OFFSET, 0xFF, 2 * THRESH_PAIRED_KIND_COUNT);

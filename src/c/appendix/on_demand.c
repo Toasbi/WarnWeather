@@ -168,11 +168,11 @@ static int16_t pick_short(const Pass *p, int i, const Fit *f, uint8_t *variant) 
     return (int16_t)best;
 }
 
-// The air before item b of side s, after item b - 1: less beside a boxed alert, whose
-// padding is already in its footprint. Ranks rise along a side and the alerts rank
-// last (od_item_boxed), so b is boxed wherever b - 1 is.
-static int16_t item_gap(const OdSideIn *s, int b) {
-    return od_item_boxed(s->rank[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
+// The air between items a and b of side s, drawn one after the other: less beside a boxed
+// alert, whose padding is already in its footprint, on either side of it (the Moon phase
+// ranks after the alerts, unboxed).
+static int16_t item_gap(const OdSideIn *s, int a, int b) {
+    return od_item_boxed(s->rank[a]) || od_item_boxed(s->rank[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
 }
 
 // The width of side d's run at `lane`: every item `c` puts in, and the gaps between.
@@ -183,10 +183,12 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
     const OdSideIn *s = &p->sides[d];
     int w = 0;
     const int end = c->first[d] + c->n[d] + (c->skip[d] != 0);
+    int prev = -1;   // the item drawn before i
     for (int i = c->first[d]; i < end; i++) {
         if (i + 1 == c->skip[d]) { continue; }
-        if (w) { w += item_gap(s, i); }
+        if (w) { w += item_gap(s, prev, i); }
         w += s->w[lane][i];
+        prev = i;
     }
     return (int16_t)w;
 }
@@ -383,12 +385,14 @@ static void place(const Pass *p, const Geom *g, OdLayout *out) {
             }
             u0 = u;
             const int end = c->first[d] + out->n[d];
+            int prev = -1;   // the item drawn before k
             for (int k = c->first[d]; k < end; k++) {
                 if (k + 1 == c->skip[d]) { continue; }
-                if (u != u0) { u += item_gap(s, k); }
+                if (u != u0) { u += item_gap(s, prev, k); }
                 const int wk = s->w[c->lane[d]][k];
                 out->item_x[d][k] = (int16_t)(d ? W - u - wk : u);
                 u += wk;
+                prev = k;
             }
             claim = u;
         }
