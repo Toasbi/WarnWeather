@@ -144,16 +144,27 @@ function principalInstant(k4) {
 }
 
 /**
- * The count of quarter lunations of the last principal phase at or before a moment.
+ * The last principal phase at or before a moment.
  * @param {number} ms A moment, epoch milliseconds.
- * @returns {number} Its k4 (principalInstant).
+ * @returns {{k4: number, instant: number}} Its count of quarter lunations (principalInstant's
+ *   k4) and its instant.
  */
 function principalBefore(ms) {
     // The mean phases are a guess: the true instants wander up to about 14 h from them.
     var k4 = Math.floor((jdeOf(ms) - JDE_K0) / (SYNODIC_DAYS / 4));
-    while (principalInstant(k4) > ms) { k4 -= 1; }
-    while (principalInstant(k4 + 1) <= ms) { k4 += 1; }
-    return k4;
+    var instant = principalInstant(k4);
+    var next;
+    while (instant > ms) {
+        k4 -= 1;
+        instant = principalInstant(k4);
+    }
+    next = principalInstant(k4 + 1);
+    while (next <= ms) {
+        k4 += 1;
+        instant = next;
+        next = principalInstant(k4 + 1);
+    }
+    return { k4: k4, instant: instant };
 }
 
 /**
@@ -167,9 +178,9 @@ function phaseOfDay(ms) {
     var day = new Date(ms);
     var start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
     var end = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
-    var k4 = principalBefore(end - 1);
-    var quarter = ((k4 % 4) + 4) % 4;
-    return principalInstant(k4) >= start ? quarter * 2 : quarter * 2 + 1;
+    var before = principalBefore(end - 1);
+    var quarter = ((before.k4 % 4) + 4) % 4;
+    return before.instant >= start ? quarter * 2 : quarter * 2 + 1;
 }
 
 /**
@@ -182,7 +193,7 @@ function phaseOfDay(ms) {
 function nextDayOf(ms, phase) {
     var now = new Date(ms);
     var start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    var k4 = principalBefore(start - 1) + 1;
+    var k4 = principalBefore(start - 1).k4 + 1;
     var instant;
     while (((k4 % 4) + 4) % 4 !== phase / 2) { k4 += 1; }
     instant = new Date(principalInstant(k4));

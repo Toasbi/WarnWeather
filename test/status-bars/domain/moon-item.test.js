@@ -1,7 +1,7 @@
 'use strict';
 // src/pkjs/status-bars/domain/moon-item.js — the moon the On demand Moon phase item shows on a
-// day: which days its Show names, Today + tomorrow's day before with the mark, the picture
-// mirrored south of the equator, and the turn at local midnight. In Berlin's zone
+// day: which days its Show names, Today + tomorrow's day before with the mark, and the picture
+// mirrored south of the equator (its turn at local midnight: status-lines-sky.test.js). In Berlin's zone
 // (test/helpers/in-zone.js), through November 2026: the new moon on the 9th, the full moon on
 // the 24th (test/weather/domain/moon.test.js pins the days).
 const test = require('node:test');
@@ -40,15 +40,14 @@ function shown(settings, days, place, platform) {
 const moons = (rows) => rows.map((r) => r.shown);
 const today = (picture) => ({ picture, mark: null });
 
-test('placed nowhere, or on a watch without On demand, the item shows no moon and never turns', () => {
+test('placed nowhere, or on a watch without On demand, the item shows no moon', () => {
   const days = [8, 9, 23, 24];
   assert.deepEqual(moons(shown({ statusTopOnDemandRightItems: '', moonItemShow: 'always' }, days)),
     [null, null, null, null], 'on no bar (the defaults leave it off every bar)');
   assert.deepEqual(moons(shown({ moonItemShow: 'always' }, days, BERLIN, 'aplite')), [null, null, null, null],
     'aplite');
-  const now = new Date(2026, 10, 24, 12);
-  assert.equal(moonItem.turnAt({ moonItemShow: 'always' }, env('basalt'), now), null);
-  assert.equal(moonItem.turnAt(Object.assign({ moonItemShow: 'always' }, PLACED), env('aplite'), now), null);
+  assert.equal(moonItem.placed({ moonItemShow: 'always' }, env('basalt')), false);
+  assert.equal(moonItem.placed(Object.assign({ moonItemShow: 'always' }, PLACED), env('aplite')), false);
   assert.equal(moonItem.placed(PLACED, env('basalt')), true);
   assert.equal(moonItem.placed(PLACED, null), true, 'no env: a watch that draws On demand');
   assert.equal(moonItem.CODE, 'moon');
@@ -101,12 +100,4 @@ test('south of the equator the waxing and waning halves swap; the place is read 
     [{ shown: { picture: moon.FULL, mark: 'raquo' }, reads: 0 }]);
   // A day the item shows nothing reads no place.
   assert.deepEqual(shown({}, [20], SYDNEY), [{ shown: null, reads: 0 }]);
-});
-
-test('turnAt: the next local midnight while the item sits on a bar', () => {
-  const got = inZone('Europe/Berlin', { item: ITEM, platform: PLATFORM }, ({ item, platform }, settings) =>
-    [new Date(2026, 10, 23, 12), new Date(2026, 10, 23, 23, 59), new Date(2026, 10, 24, 0, 0)].map((now) =>
-      new Date(item.turnAt(settings, platform.computeEnv({ platform: 'basalt' }), now)).toString().slice(4, 24)),
-  PLACED);
-  assert.deepEqual(got, ['Nov 24 2026 00:00:00', 'Nov 24 2026 00:00:00', 'Nov 25 2026 00:00:00']);
 });

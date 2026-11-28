@@ -630,7 +630,7 @@ function skyReadings(lines, settings, env, now, place) {
 
 /**
  * The next instant at which a sun and moon slot of the bars a bake at `now` sends changes by
- * itself (sky-slots.js turnAt), or the Moon phase item's moon may (moon-item.js turnAt): when
+ * itself, or the Moon phase item's moon may, at local midnight (sky-slots.js turnAt): when
  * status-rebake.js bakes again without a fetch.
  * @param {?Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
@@ -640,16 +640,11 @@ function skyReadings(lines, settings, env, now, place) {
  */
 function skyTurnAt(settings, watchInfo, now, facts) {
   var env;
-  var sky;
-  var slots;
-  var item;
   if (!settings) { return null; }
   env = platformLib.computeEnv(watchInfo);
-  sky = skyReadings(catalog.bakedLines(settings, env), settings, env, now, placeOnce(facts));
-  slots = sky ? skySlots.turnAt(sky, now) : null;
   // The item rides the levels word, which only a watch with the highlight is sent.
-  item = env.thresholds ? moonItem.turnAt(settings, env, now) : null;
-  return slots === null || (item !== null && item < slots) ? item : slots;
+  return skySlots.turnAt(shownSkyCodes(catalog.bakedLines(settings, env), settings, env), now, placeOnce(facts),
+    Boolean(env.thresholds) && moonItem.placed(settings, env));
 }
 
 /**

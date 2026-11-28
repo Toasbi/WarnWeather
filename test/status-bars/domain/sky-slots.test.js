@@ -43,17 +43,18 @@ function slotsAt(zone, place, times, settings, codes) {
  * @param {?{lat: number, lon: number}} place Where the sky is seen from.
  * @param {string[]} times Local times.
  * @param {string[]} codes The slots shown.
+ * @param {boolean} [midnightToo] Whether something else turns at midnight (the Moon phase item).
  * @returns {Array<?string>} 'D HH:MM:SS' local, or null.
  */
-function turnsAt(zone, place, times, codes) {
-  return inZone(zone, { sky: SKY }, ({ sky }, { place, times, codes }) => times.map((iso) => {
+function turnsAt(zone, place, times, codes, midnightToo) {
+  return inZone(zone, { sky: SKY }, ({ sky }, { place, times, codes, midnightToo }) => times.map((iso) => {
     const now = new Date(iso);
-    const turn = sky.turnAt(sky.readingsAt(codes, now, () => place), now);
+    const turn = sky.turnAt(codes, now, () => place, midnightToo);
     const pad = (n) => (n < 10 ? '0' : '') + n;
     if (turn === null) { return null; }
     const d = new Date(turn);
     return d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-  }), { place, times, codes });
+  }), { place, times, codes, midnightToo: Boolean(midnightToo) });
 }
 
 test('Berlin on 28 Nov 2026: the dusk through the day, the dawn through the night, the day\'s length, a waning gibbous', () => {
@@ -135,6 +136,27 @@ test('the next turn: the dawn or dusk shown, midnight for the day length and the
   // Whichever comes first.
   assert.deepEqual(turnsAt('Europe/Berlin', BERLIN, ['2026-11-28T12:00', '2026-11-28T20:00'], ALL),
     ['28 16:40:19', '29 00:00:00']);
+  // The On demand Moon phase item turns at midnight too, with no slot or beside one; at midnight
+  // itself, at the next.
+  assert.deepEqual(turnsAt('Europe/Berlin', BERLIN, ['2026-11-23T12:00', '2026-11-23T23:59', '2026-11-24T00:00'],
+    [], true), ['24 00:00:00', '24 00:00:00', '25 00:00:00']);
+  assert.deepEqual(turnsAt('Europe/Berlin', BERLIN, ['2026-11-28T12:00', '2026-11-28T20:00'], ['twilight'], true),
+    ['28 16:40:19', '29 00:00:00']);
+  assert.deepEqual(turnsAt('Europe/Berlin', BERLIN, ['2026-11-28T12:00'], []), [null]);
+});
+
+test('the turn reads the place only for the sun\'s slots, never for the moon\'s picture', () => {
+  const now = new Date(Date.UTC(2026, 10, 28, 12));
+  const readsFor = (codes) => {
+    let reads = 0;
+    skySlots.turnAt(codes, now, () => { reads += 1; return BERLIN; }, true);
+    return reads;
+  };
+  // A waning gibbous, whose picture the slot's readings read the place for.
+  assert.equal(readsFor(['moon']), 0);
+  assert.equal(readsFor([]), 0);
+  assert.equal(readsFor(['twilight']), 1);
+  assert.equal(readsFor(ALL), 1);
 });
 
 test('without a place nothing but the moon turns; with no dawn or dusk in reach Dawn/dusk does not', () => {

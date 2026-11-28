@@ -10,8 +10,8 @@
 //    tonight's. Today's moon always wins.
 // The picture is the moon as the place sees it (moon.js seenFrom, as for the Moon phase slot):
 // south of the equator its waxing and waning halves swap, and the place is read only for a
-// picture that swaps. The day's moon changes at local midnight (turnAt), when status-rebake.js
-// bakes again between fetches.
+// picture that swaps. The day's moon changes at local midnight, when status-rebake.js bakes
+// again between fetches (status-lines.js skyTurnAt).
 //
 // Phone-only: moon.js, which the settings page does not load. Pure; ES5 only (aplite PKJS,
 // though aplite has no On demand).
@@ -86,22 +86,8 @@ function shownMoon(settings, env, now, place) {
     return item.show === 'always' ? seen(today, null, place) : null;
 }
 
-/**
- * The next instant after `now` at which the item's moon may change, for a bake between fetches
- * (status-rebake.js onTick): the next local midnight while the item sits on a bar.
- * @param {Object} settings Clay settings blob.
- * @param {?Object} env Platform env (see placed).
- * @param {Date} now The bake's instant.
- * @returns {?number} Epoch milliseconds; null while the item sits on no bar.
- */
-function turnAt(settings, env, now) {
-    return placed(settings, env)
-        ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() : null;
-}
-
 module.exports = {
     CODE: CODE,
     placed: placed,
-    shownMoon: shownMoon,
-    turnAt: turnAt
+    shownMoon: shownMoon
 };
