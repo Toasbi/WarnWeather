@@ -20,6 +20,7 @@ var coords = require('./coords.js');
 var weatherTabModel = require('./weather-tab-model.js');
 var keyFingerprint = require('./keys/key-fingerprint.js');
 var sourcePlan = require('./source-plan.js');
+var openMeteoModels = require('./open-meteo-models.js');
 
 var VERSION = 1;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
@@ -87,8 +88,8 @@ function anchorStart(entry, anchor) { return anchor.startTime; }
 var KINDS = {
     // A provider's whole forecast. Its answer depends on the graph's hours, the day maxima, the
     // optional series and the feels-like formula, and on the key (its fingerprint), so a new
-    // key is tried at once. It serves the rest of its refresh slot within its hour, and is
-    // reused as it was kept.
+    // key is tried at once; Open-Meteo's on its weather model too. It serves the rest of its
+    // refresh slot within its hour, and is reused as it was kept.
     forecast: {
         /** @returns {string[]} The adopted fields. */
         fields: function () { return forecastModel.ADOPTED_KEYS; },
@@ -98,9 +99,11 @@ var KINDS = {
          */
         request: function (provider) {
             var o = provider.options;
-            return { hours: hourlyWindow.windowHours(o), peaks: peaksOf(provider, forecastModel.ADOPTED_KEYS),
+            var request = { hours: hourlyWindow.windowHours(o), peaks: peaksOf(provider, forecastModel.ADOPTED_KEYS),
                 uv: Boolean(o.fetchUv), feels: Boolean(o.fetchFeels), formula: o.feelsFormula,
                 key: keyFingerprint.fingerprint(provider.apiKey) };
+            if (provider.id === openMeteoModels.PROVIDER) { request.model = o.openMeteoModel; }
+            return request;
         },
         serves: inSlotAndHour,
         /**

@@ -106,18 +106,36 @@ test('a query keeps the place to three decimals, and what the answer depends on,
 });
 
 test('every fetch option either changes the request or is one no answer depends on', () => {
-  const base = provider();
+  // Open-Meteo's forecast: the one whose answer depends on every option outside ANSWER_NEUTRAL.
+  const base = provider({ id: 'openmeteo', apiKey: '' });
   const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
     dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68,
-    drawn: ['cloud'], sources: { choices: { wind: 'dwd' }, keyed: ['yandex'] } };
+    drawn: ['cloud'], sources: { choices: { wind: 'dwd' }, keyed: ['yandex'] }, openMeteoModel: 'chmi_aladin_seamless' };
   assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),
     'every option has a changed value here');
   Object.keys(changed).forEach((key) => {
     const over = {};
     over[key] = changed[key];
-    const same = JSON.stringify(queryFor(base).request) === JSON.stringify(queryFor(provider({ options: over })).request);
+    const same = JSON.stringify(queryFor(base).request)
+      === JSON.stringify(queryFor(provider({ id: 'openmeteo', apiKey: '', options: over })).request);
     assert.equal(same, snap.ANSWER_NEUTRAL.indexOf(key) !== -1, key);
   });
+});
+
+test('the weather model is in Open-Meteo\'s forecast request alone', () => {
+  const aladin = { openMeteoModel: 'chmi_aladin_seamless' };
+  const now = T0 + MIN_MS;
+  const om = provider({ id: 'openmeteo', apiKey: '' });
+  assert.equal(queryFor(om).request.model, 'ecmwf_ifs025');
+  assert.equal(reused([kept(om, T0)], provider({ id: 'openmeteo', apiKey: '', options: aladin }), now), null,
+    'another model asks again');
+  const dwd = provider({ id: 'dwd', apiKey: '' });
+  assert.equal(Object.prototype.hasOwnProperty.call(queryFor(dwd).request, 'model'), false,
+    'no other provider answers with an Open-Meteo model');
+  assert.ok(reused([kept(dwd, T0)], provider({ id: 'dwd', apiKey: '', options: aladin }), now),
+    'so DWD\'s forecast is reused across a model change');
+  assert.equal(Object.prototype.hasOwnProperty.call(queryFor(om, 'uv').request, 'model'), false,
+    'nor does an Open-Meteo fill, which keeps its own model');
 });
 
 test('a forecast serves the rest of its refresh slot, within the hour it was kept in', () => {

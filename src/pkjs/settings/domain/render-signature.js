@@ -19,6 +19,7 @@ var forecastAxis = require('../../forecast-graphs/domain/forecast-axis.js');
 var graphStyleWire = require('../../forecast-graphs/domain/graph-style-wire.js');
 var platformLib = require('../../config-ui/lib/platform.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
+var openMeteoModels = require('../../weather/domain/open-meteo-models.js');
 
 /**
  * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
@@ -173,8 +174,9 @@ function renderSignature(settings, watchInfo) {
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
         // ...where the readings come from (the reading picks: the source plan asks
-        // again)...
-        JSON.stringify(sourcePlan.choicesOf(settings)),
+        // again), and Open-Meteo's weather model while it is the Provider (index.js sees a new
+        // Provider by its id, not a new model)...
+        JSON.stringify(sourcePlan.choicesOf(settings)), openMeteoModels.modelOf(settings),
         // ...the feels-like formula (swaps the provider's value for Steadman in
         // FEELS_TREND / FEELS_CURRENT, so it re-bakes the series AND the temp slot)...
         settings.feelsFormula,

@@ -10,7 +10,8 @@ const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js'
 const forecastSeries = require('../../../src/pkjs/weather/domain/forecast-series.js');
 
 const KNOBS = ['fetchUv', 'fetchAqi', 'fetchPollen', 'fetchFeels', 'feelsFormula',
-  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sources'];
+  'dayPeakCodes', 'windUnits', 'aqiScale', 'aqiSource', 'aqicnToken', 'forecastHours', 'drawn', 'sources',
+  'openMeteoModel'];
 
 test('DEFAULTS names every knob with its fail-safe default', () => {
   assert.deepEqual(Object.keys(fetchOptions.DEFAULTS).sort(), KNOBS.slice().sort());
@@ -18,7 +19,7 @@ test('DEFAULTS names every knob with its fail-safe default', () => {
     fetchUv: false, fetchAqi: false, fetchPollen: false, fetchFeels: true,
     feelsFormula: 'provider', dayPeakCodes: null, windUnits: 'kph',
     aqiScale: 'european', aqiSource: 'waqi', aqicnToken: '', forecastHours: 24, drawn: [],
-    sources: { choices: {}, keyed: [] }
+    sources: { choices: {}, keyed: [] }, openMeteoModel: 'ecmwf_ifs025'
   });
   assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.drawn), 'one default list, shared by every defaults(), stays empty');
 });
@@ -147,6 +148,17 @@ test('build() carries where the weather comes from, as the source plan reads the
       assert.deepEqual(fetchOptions.build(settings).sources, sourcePlan.sourcesOf(settings), JSON.stringify(settings));
     });
   assert.ok(Object.isFrozen(fetchOptions.DEFAULTS.sources.choices) && Object.isFrozen(fetchOptions.DEFAULTS.sources.keyed));
+});
+
+test('build() carries the Open-Meteo weather model while Open-Meteo is the Provider, else the default', () => {
+  const aladin = { provider: 'openmeteo', openMeteoModel: 'chmi_aladin_seamless' };
+  assert.equal(fetchOptions.build(aladin).openMeteoModel, 'chmi_aladin_seamless');
+  assert.equal(fetchOptions.build(Object.assign({}, aladin, { provider: 'dwd' })).openMeteoModel, 'ecmwf_ifs025',
+    'Open-Meteo as a source of single readings answers with the default');
+  assert.equal(fetchOptions.build({ provider: 'openmeteo', openMeteoModel: 'ncep_hrrr_conus' }).openMeteoModel,
+    'ecmwf_ifs025', 'a model the table does not hold (one Open-Meteo retired) is the default');
+  assert.equal(fetchOptions.build({ provider: 'openmeteo' }).openMeteoModel, 'ecmwf_ifs025', 'none stored');
+  assert.equal(fetchOptions.build(null).openMeteoModel, 'ecmwf_ifs025', 'no settings');
 });
 
 test('build() names the drawn readings (drawn-readings.js), and asks for UV exactly when it is one', () => {

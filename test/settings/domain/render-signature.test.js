@@ -45,6 +45,17 @@ test('every one of the reading picks joins the signature: the source plan asks a
     'the Provider\'s (\'\') is no pick');
 });
 
+test('Open-Meteo\'s weather model joins the signature while Open-Meteo is the Provider', () => {
+  const om = { provider: 'openmeteo' };
+  assert.notEqual(renderSignature(Object.assign({ openMeteoModel: 'chmi_aladin_seamless' }, om)), renderSignature(om),
+    'a new model: the fetch asks it at once');
+  assert.equal(renderSignature(Object.assign({ openMeteoModel: 'ecmwf_ifs025' }, om)), renderSignature(om),
+    'the default, stored or not, is one model');
+  const dwd = { provider: 'dwd' };
+  assert.equal(renderSignature(Object.assign({ openMeteoModel: 'chmi_aladin_seamless' }, dwd)), renderSignature(dwd),
+    'with another Provider, no fetch asks it');
+});
+
 test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
   const base = renderSignature({});
   assert.notEqual(renderSignature({ tempSlotDisplay: 'feels' }), base);

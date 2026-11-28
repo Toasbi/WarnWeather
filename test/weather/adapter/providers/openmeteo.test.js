@@ -893,3 +893,113 @@ test('a reading the answer has no hour of keeps what the provider had', () => {
   openmeteo.adoptFill(partial, { hourly: { time: [BASE], dew_point_2m: [null] } }, 24, ['dew']);
   assert.deepEqual(partial.dewTrend, [], 'a window of nulls is no reading');
 });
+
+// ---- Weather models (open-meteo-models.js) --------------------------------
+test('buildForecastUrl asks the weather model it is given, the default for none or an unknown one', () => {
+  assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 24, 'chmi_aladin_seamless'),
+    /&models=chmi_aladin_seamless(&|$)/);
+  assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 68, 'ukmo_seamless'), /&models=ukmo_seamless&forecast_days=4$/);
+  ['', 'ncep_hrrr_conus', 'constructor', undefined].forEach((model) => {
+    assert.match(openmeteo.buildForecastUrl(52.52, 13.41, 24, model), /&models=ecmwf_ifs025(&|$)/, String(model));
+  });
+  assert.deepEqual(hourlyFields(openmeteo.buildForecastUrl(1, 2, 24, 'jma_seamless')),
+    hourlyFields(openmeteo.buildForecastUrl(1, 2, 24)), 'every model is asked for the same fields');
+});
+
+test('buildChanceUrl asks ECMWF for its chance alone, over the main request\'s GMT days', () => {
+  const url = openmeteo.buildChanceUrl(52.52, 13.41, 24);
+  assert.deepEqual(hourlyFields(url), ['precipitation_probability']);
+  assert.match(url, /&models=ecmwf_ifs025(&|$)/);
+  assert.match(url, /&timeformat=unixtime&timezone=GMT/);
+  assert.match(url, /&forecast_days=3$/);
+  assert.match(openmeteo.buildChanceUrl(52.52, 13.41, 68), /&forecast_days=4$/);
+});
+
+test('a model whose chance is not its own brings no precipitation amount; the chance stays', () => {
+  const nowEpoch = BASE + 11 * 3600 + 600;
+  ['chmi_aladin_seamless', 'dwd_icon_seamless', 'cmc_gem_seamless', 'knmi_seamless'].forEach((model) => {
+    const out = mapResponse(ensembleResponse(), nowEpoch, 24, { model: model });
+    assert.deepEqual(out.rainTrend, [], model + ': no amount');
+    assert.equal(out.precipTrend.length, 24, model + ': a chance');
+    assert.equal(out.tempTrend.length, 24);
+  });
+  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global', 'meteoswiss_icon_seamless', 'ukmo_seamless'].forEach((model) => {
+    assert.deepEqual(mapResponse(ensembleResponse(), nowEpoch, 24, { model: model }).rainTrend.slice(0, 5),
+      [0, 1, 1, 1, 0], model + ': its own amount');
+  });
+});
+
+test('an hourly chance is read one bucket ahead, like the rain; the default\'s by 3-hour block', () => {
+  const json = sampleResponse();
+  const nowEpoch = BASE + 18 * 3600 + 600;
+  assert.deepEqual(mapResponse(json, nowEpoch, 24, { model: 'meteoswiss_icon_seamless' }).precipTrend.slice(0, 4),
+    [0.19, 0.2, 0.21, 0.22], 'MeteoSwiss ICON: its hourly ensemble');
+  assert.deepEqual(mapResponse(json, nowEpoch, 24, { model: 'ukmo_seamless' }).precipTrend.slice(0, 4),
+    [0.19, 0.2, 0.21, 0.22], 'Met Office UKV: its hourly ensemble');
+  assert.deepEqual(mapResponse(json, nowEpoch, 24, { model: 'ecmwf_ifs025' }).precipTrend.slice(0, 4),
+    [0.21, 0.21, 0.21, 0.24], 'ECMWF IFS: the 18:00-21:00 block, then the next');
+});
+
+/**
+ * The answer of ECMWF's chance request: its own hours, 72 of them, the chance at bucket i being i %.
+ * @param {number} [shift] Buckets its hours start after the main answer's.
+ * @returns {Object}
+ */
+function chanceResponse(shift) {
+  const time = [];
+  const precipitation_probability = [];
+  for (let i = 0; i < 72; i += 1) {
+    time.push(BASE + ((shift || 0) + i) * 3600);
+    precipitation_probability.push(i);
+  }
+  return { hourly: { time: time, precipitation_probability: precipitation_probability } };
+}
+
+test('a model without a chance takes ECMWF\'s, read by its 3-hour block from the same hour on', () => {
+  const json = sampleResponse();
+  json.hourly.precipitation_probability = json.hourly.time.map(() => null);
+  const nowEpoch = BASE + 18 * 3600 + 600;
+  ['meteofrance_seamless', 'jma_seamless'].forEach((model) => {
+    const out = mapResponse(json, nowEpoch, 24, { model: model, chance: chanceResponse() });
+    assert.deepEqual(out.precipTrend.slice(0, 4), [0.21, 0.21, 0.21, 0.24], model);
+    assert.deepEqual(out.rainTrend, [], model + ': no amount beside a chance from another model');
+    assert.equal(mapResponse(json, nowEpoch, 24, { model: model }), null, model + ': without it, no forecast');
+  });
+  // Its hours line up by time: an answer that starts two hours later reads the same hours.
+  const shifted = mapResponse(json, nowEpoch, 24, { model: 'jma_seamless', chance: chanceResponse(2) });
+  assert.deepEqual(shifted.precipTrend.slice(0, 4), [0.19, 0.19, 0.19, 0.22]);
+  assert.equal(mapResponse(json, nowEpoch, 24, { model: 'jma_seamless', chance: chanceResponse(19) }), null,
+    'an answer without the window\'s first hour holds no chance for it');
+  assert.equal(mapResponse(sampleResponse(), nowEpoch, 24, { model: 'jma_seamless', chance: { hourly: {} } }), null);
+});
+
+test('the window ends at the first hour without a temperature; short of a day, no forecast', () => {
+  const nowEpoch = BASE + 2 * 3600;
+  const json = sampleResponse();
+  json.hourly.temperature_2m = json.hourly.temperature_2m.map((t, i) => (i < 2 + 30 ? t : null));
+  const out = mapResponse(json, nowEpoch, 68, { model: 'chmi_aladin_seamless' });
+  assert.equal(out.tempTrend.length, 30, 'past the model\'s own hours, none of 0 °F');
+  assert.equal(out.precipTrend.length, 30);
+  assert.equal(out.gustTrend.length, 30);
+  json.hourly.temperature_2m[2 + 23] = null;
+  assert.equal(mapResponse(json, nowEpoch, 24, { model: 'chmi_aladin_seamless' }), null, '23 hours');
+  assert.equal(mapResponse(json, nowEpoch), null, 'the default\'s answer too');
+});
+
+test('an answer without a chance for the window, or a number of air pressure or cloud, holds none of it', () => {
+  const nowEpoch = BASE + 18 * 3600 + 600;
+  const noChance = sampleResponse();
+  noChance.hourly.precipitation_probability = noChance.hourly.time.map(() => null);
+  assert.equal(mapResponse(noChance, nowEpoch), null, 'not 0 % all day');
+  const json = sampleResponse();
+  json.hourly.pressure_msl = json.hourly.time.map(() => null);
+  json.hourly.cloud_cover = json.hourly.time.map(() => null);
+  const out = mapResponse(json, nowEpoch);
+  assert.deepEqual(out.pressureTrend, [], 'the pressure line off');
+  assert.deepEqual(out.cloudTrend, [], 'the cloud line off, not a clear sky');
+  json.hourly.pressure_msl[30] = 1012;
+  json.hourly.cloud_cover[30] = 80;
+  const one = mapResponse(json, nowEpoch);
+  assert.equal(one.pressureTrend.length, 24, 'one hour with a number keeps the series');
+  assert.equal(one.cloudTrend.length, 24);
+});

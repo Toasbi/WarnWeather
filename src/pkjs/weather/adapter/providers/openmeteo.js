@@ -4,6 +4,7 @@ var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('../../domain/hourly-window.js');
 var dayPeaks = require('../../domain/day-peaks.js');
+var openMeteoModels = require('../../domain/open-meteo-models.js');
 var weightedCloudCover = require('../../domain/cloud-cover.js').weightedCloudCover;
 var condition = require('../../domain/condition.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
@@ -66,32 +67,30 @@ function cloudSlice(hourly, anchor, end) {
     return out;
 }
 
-// The ECMWF IFS 0.25° ensemble's forecast step: its buckets fall on 00, 03,
-// 06 … UTC.
-var ENSEMBLE_STEP_SECONDS = 3 * HOUR_SECONDS;
-
 /**
- * precipitation_probability under models=ecmwf_ifs025, read by 3-hour block.
- * Open-Meteo takes that model's chance from the IFS 0.25° ENSEMBLE, which only
- * has 3-hourly steps: the bucket stamped at a 3-hour UTC boundary T holds the
- * chance of rain in [T-3h, T), and the two stamps between boundaries are a
- * smooth (hermite) blend of the neighbouring blocks, as if each block's value
- * were an instant at its stamp. Read one bucket ahead like the rain, the
- * chance therefore peaked in the last hour of a wet block and trailed two
- * hours past it -- an hour behind the rain bars, which spread the same 3-hour
- * block's total evenly over its three hours. Slot i reads its own block's
- * boundary bucket instead: the first 3-hour boundary at or after the slot's
- * end. A block whose boundary is past the response keeps the one-bucket-ahead
- * value, and a short series stays short so hasValidData still rejects it.
+ * precipitation_probability read by the block of hours one value of it covers (`stepHours`:
+ * open-meteo-models.js chanceHours). Open-Meteo makes the chance from an ensemble. The default
+ * model's, the IFS 0.25° ensemble, has 3-hourly steps: the bucket stamped at a 3-hour UTC
+ * boundary T holds the chance of rain in [T-3h, T), and the two stamps between boundaries are a
+ * smooth (hermite) blend of the neighbouring blocks, as if each block's value were an instant at
+ * its stamp. Read one bucket ahead like the rain, the chance therefore peaked in the last hour of
+ * a wet block and trailed two hours past it -- an hour behind the rain bars, which spread the
+ * same 3-hour block's total evenly over its three hours. Slot i reads its own block's boundary
+ * bucket instead: the first boundary at or after the slot's end. An hourly chance (a step of 1)
+ * is its own block: slot i reads the bucket one ahead, as the rain does. A block whose boundary
+ * is past the response keeps the one-bucket-ahead value, and a short series stays short so
+ * hasValidData still rejects it.
  *
  * @param {Array} series hourly.precipitation_probability.
  * @param {Array.<number>} times hourly.time (epoch seconds, GMT hours).
  * @param {number} anchor Index of slot 0's bucket.
- * @param {number} [hours] The window's slots (mapResponse's count); FORECAST_HOURS when absent.
+ * @param {number} hours The window's slots (mapResponse's count).
+ * @param {number} stepHours The hours one value of the chance covers: 3, or 1.
  * @returns {Array} Up to `hours` chances in %.
  */
-function ensembleBlockSlice(series, times, anchor, hours) {
+function chanceBlockSlice(series, times, anchor, hours, stepHours) {
     var out = precedingHourSlice(series, anchor, times.length, 0, hours);
+    var step = stepHours * HOUR_SECONDS;
     var at = {};
     var i;
     var slotEnd;
@@ -101,12 +100,61 @@ function ensembleBlockSlice(series, times, anchor, hours) {
     }
     for (i = 0; i < out.length; i += 1) {
         slotEnd = times[anchor] + (i + 1) * HOUR_SECONDS;
-        block = at[Math.ceil(slotEnd / ENSEMBLE_STEP_SECONDS) * ENSEMBLE_STEP_SECONDS];
+        block = at[Math.ceil(slotEnd / step) * step];
         if (block !== undefined && typeof series[block] === 'number') {
             out[i] = series[block];
         }
     }
     return out;
+}
+
+/**
+ * The chance of a window from startTime on, as a fraction: the hourly block that holds it (the
+ * main answer's, or the ECMWF chance request's for a model that has none) read by its model's
+ * step. An answer with no chance for any of the window's hours holds none: read as it is, it
+ * would say 0 % all day.
+ *
+ * @param {Object} hourly An answer's hourly block, its time and precipitation_probability arrays.
+ * @param {number} startTime The window's first hour, epoch seconds.
+ * @param {number} count The window's slots.
+ * @param {number} stepHours The hours one value of the chance covers (chanceBlockSlice).
+ * @returns {?number[]} Up to `count` chances, 0..1; null when the answer holds none for the
+ *   window.
+ */
+function chanceSlice(hourly, startTime, count, stepHours) {
+    var series = hourly.precipitation_probability;
+    var anchor = hourly.time.indexOf(startTime);
+    if (anchor < 0 || !holdsReading(series.slice(anchor + 1, anchor + 1 + count))) {
+        return null;
+    }
+    return chanceBlockSlice(series, hourly.time, anchor, count, stepHours).map(function(p) {
+        return p / 100;
+    });
+}
+
+/**
+ * How many hours from `from` on hold a number, `max` at most.
+ * @param {Array} series An hourly field array.
+ * @param {number} from The first index.
+ * @param {number} max The most hours counted.
+ * @returns {number}
+ */
+function numberRun(series, from, max) {
+    var n = 0;
+    while (n < max && typeof series[from + n] === 'number') {
+        n += 1;
+    }
+    return n;
+}
+
+/**
+ * Whether an answer's hourly block holds a chance series: its time and precipitation_probability
+ * arrays.
+ * @param {*} hourly An answer's hourly block.
+ * @returns {boolean}
+ */
+function hasChanceArrays(hourly) {
+    return Boolean(hourly) && Array.isArray(hourly.time) && Array.isArray(hourly.precipitation_probability);
 }
 
 /**
@@ -128,8 +176,17 @@ function ensembleBlockSlice(series, times, anchor, hours) {
  * shower landed an hour late. (The settings page's Weather tab re-stamps the
  * same three fields the same way, weather-tab-model.js's startHourFields, so
  * a tap on 14:00 there reads the hour this slot shows.) The chance goes one
- * step further: the pinned model's comes from a 3-hourly ensemble, so each
- * slot reads its whole 3-hour block (ensembleBlockSlice).
+ * step further: it comes from an ensemble, so each slot reads the block of
+ * hours one of its values covers, three for the default model's (chanceSlice).
+ *
+ * The weather model (open-meteo-models.js) sets three things. A model whose
+ * chance is not its own brings no precipitation amount (rainTrend []): the bars
+ * would come and go against the chance line. A model with no chance at all
+ * takes the chance of ECMWF's request beside it (`ask.chance`). And a model's
+ * answer can stop holding temperatures before the window's end (past its own
+ * forecast, or outside its area): the window ends at the first hour without
+ * one, as Math.round(null) would send 0 °F. A window that comes up short of a
+ * day, or without a chance, is no forecast.
  *
  * The weather condition now is the current block's WMO weather_code, beside its
  * temperature_2m (currentTemp).
@@ -139,21 +196,27 @@ function ensembleBlockSlice(series, times, anchor, hours) {
  * @param {number} [hours] The window to map (hourly-window.js windowHours: 24, or
  *   emery's 26 or 68); FORECAST_HOURS when absent. Past the base 24 the window
  *   takes what the response holds.
+ * @param {{model: (string|undefined), chance: (?Object|undefined)}} [ask] What the request
+ *   was for: `model`, the weather model (the default when absent); `chance`, the parsed
+ *   answer of ECMWF's chance request, for a model that has no chance (asksChance).
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number, currentCondition: ?string}|null}
- *   Mapped fields, or null when the response is malformed or has fewer than
- *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
- *   preceding-hour values sit in the bucket after the window; a response
- *   without it reads that slot as dry — see precedingHourSlice.)
+ *   Mapped fields, or null when the response is malformed, has fewer than
+ *   FORECAST_HOURS hours with a temperature at/after the current hour, or holds no
+ *   chance for them. (The last slot's preceding-hour values sit in the bucket
+ *   after the window; a response without it reads that slot as dry — see
+ *   precedingHourSlice.)
  */
-function mapResponse(json, nowEpoch, hours) {
+function mapResponse(json, nowEpoch, hours, ask) {
+    var model = openMeteoModels.modelRow(ask && ask.model);
     var hourly = json && json.hourly;
     var current = json && json.current;
     var times = hourly && hourly.time;
+    var chanceHourly = model.chance === 'none' ? (ask && ask.chance && ask.chance.hourly) : hourly;
     var anchor;
 
     if (!hourly || !current || !Array.isArray(times)
         || !Array.isArray(hourly.temperature_2m)
-        || !Array.isArray(hourly.precipitation_probability)
+        || !hasChanceArrays(chanceHourly)
         || !Array.isArray(hourly.precipitation)
         || !Array.isArray(hourly.windspeed_10m)
         || !Array.isArray(hourly.windgusts_10m)
@@ -166,38 +229,43 @@ function mapResponse(json, nowEpoch, hours) {
         return null;
     }
 
-    // The base 24 are checked above; the long span takes the hours past them the
-    // response holds (buildForecastUrl asks for a fourth day then).
-    var count = hourlyWindow.hourlyRun(times, anchor, hours || FORECAST_HOURS);
+    // The long span takes the hours past the base 24 the response holds with a
+    // temperature (buildForecastUrl asks for a fourth day then).
+    var count = numberRun(hourly.temperature_2m, anchor,
+        hourlyWindow.hourlyRun(times, anchor, hours || FORECAST_HOURS));
     var end = anchor + count;
+    // Preceding-hour fields: one bucket ahead (see the doc comment), the chance
+    // by its block. forecast_days=3 at GMT is 72 buckets (4 and 96 past 24 h:
+    // emery's 26 or 68) and the anchor is at most 23, so the bucket after the
+    // window and the last slot's block boundary are there for a well-formed
+    // response.
+    var chance = count >= FORECAST_HOURS ? chanceSlice(chanceHourly, times[anchor], count, model.chanceHours) : null;
+    if (!chance) {
+        return null;
+    }
     return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
-        // Preceding-hour fields: one bucket ahead (see the doc comment), the
-        // chance by 3-hour block. forecast_days=3 at GMT is 72 buckets (4 and 96
-        // past 24 h: emery's 26 or 68) and the anchor is at most 23, so the
-        // bucket after the window and the last slot's block boundary are there for
-        // a well-formed response.
-        precipTrend: ensembleBlockSlice(hourly.precipitation_probability, times, anchor, count)
-            .map(function(p) {
-                return p / 100;
-            }),
-        rainTrend: precedingHourSlice(hourly.precipitation, anchor, times.length, 0, count),
+        precipTrend: chance,
+        rainTrend: openMeteoModels.bringsAmount(model.id)
+            ? precedingHourSlice(hourly.precipitation, anchor, times.length, 0, count) : [],
         // Wind reads on to PEAK_HOURS for the wind slot's day max (the 72
         // buckets always hold it), or the graph's window when that is longer (the
         // long span's 68, inside its 96); getPayload cuts it back to the graph's
         // window.
         windTrend: hourly.windspeed_10m.slice(anchor, anchor + hourlyWindow.reachHours(hours)),
         gustTrend: precedingHourSlice(hourly.windgusts_10m, anchor, times.length, null, count),
-        // Optional, unlike the guarded fields above: an absent series degrades to
-        // line-off rather than failing the whole fetch. Verified 2026-08-12 that the
-        // pinned ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m,
-        // which it returns all-null — hence the separate gust call below).
-        pressureTrend: Array.isArray(hourly.pressure_msl)
+        // Optional, unlike the guarded fields above: an absent series, or one
+        // without a number in the window, degrades to line-off rather than
+        // failing the whole fetch. Verified 2026-08-12 that the pinned
+        // ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m, which
+        // it returns all-null — hence the separate gust call below).
+        pressureTrend: Array.isArray(hourly.pressure_msl) && holdsReading(hourly.pressure_msl.slice(anchor, end))
             ? hourly.pressure_msl.slice(anchor, end) : [],
-        // Optional like pressure: cloud cover (%) and its low/mid/high layers are
-        // ECMWF IFS outputs, so they ride the pinned main request. Absent total →
-        // [] → the cloud line stays off.
-        cloudTrend: Array.isArray(hourly.cloud_cover) ? cloudSlice(hourly, anchor, end) : [],
+        // Optional like pressure: cloud cover (%) and its low/mid/high layers
+        // ride the main request. An absent total, or one without a number in the
+        // window → [] → the cloud line stays off, rather than a clear sky.
+        cloudTrend: Array.isArray(hourly.cloud_cover) && holdsReading(hourly.cloud_cover.slice(anchor, end))
+            ? cloudSlice(hourly, anchor, end) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m,
         currentCondition: condition.fromWmo(current.weather_code)
@@ -226,14 +294,15 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  * span's last slot's boundary sits at index anchor + 69 from a 22:00 or 23:00
  * anchor (92 at most), past the third day's 72.
  *
- * Pins models=ecmwf_ifs025 rather than the default best_match: best_match
- * blends models and sources precipitation_probability separately from the
- * deterministic precipitation amount, so high-probability hours frequently
- * report 0.0 mm — which makes the (amount-driven) rain bars vanish. ECMWF IFS
- * is a single coherent global model whose amount tracks its probability in
- * every region tested, so the bars show wherever the watch is used. (Its
- * chance comes from the same model's ensemble, 3-hourly -- see
- * ensembleBlockSlice.)
+ * Pins a model rather than the default best_match: best_match blends models
+ * and sources precipitation_probability separately from the deterministic
+ * precipitation amount, so high-probability hours frequently report 0.0 mm —
+ * which makes the (amount-driven) rain bars vanish. The default, ECMWF IFS
+ * (ecmwf_ifs025), is a single coherent global model whose amount tracks its
+ * probability in every region tested, so the bars show wherever the watch is
+ * used. (Its chance comes from the same model's ensemble, 3-hourly -- see
+ * chanceBlockSlice.) The settings may pick another (open-meteo-models.js);
+ * the request asks every model for the same fields.
  *
  * The current block carries the WMO weather_code beside the temperature: the
  * condition slot's "now", from the same model as the rain bars and the cloud
@@ -243,9 +312,11 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} [hours] The window mapResponse maps (windowHours); 24 when absent.
+ * @param {string} [model] The weather model (open-meteo-models.js); the default when absent
+ *   or unknown.
  * @returns {string} Fully-formed request URL.
  */
-function buildForecastUrl(lat, lon, hours) {
+function buildForecastUrl(lat, lon, hours, model) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
@@ -257,8 +328,37 @@ function buildForecastUrl(lat, lon, hours) {
         + '&precipitation_unit=mm'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&models=ecmwf_ifs025'
-        + '&forecast_days=' + (hours > FORECAST_HOURS ? 4 : 3);
+        + '&models=' + openMeteoModels.modelRow(model).id
+        + '&forecast_days=' + forecastDays(hours);
+}
+
+/**
+ * The GMT days the main request asks for: three hold a 24-hour window, four one past it.
+ * @param {number} [hours] The window mapResponse maps (windowHours); 24 when absent.
+ * @returns {number} forecast_days.
+ */
+function forecastDays(hours) {
+    return hours > FORECAST_HOURS ? 4 : 3;
+}
+
+/**
+ * Build the request for ECMWF's chance alone, beside the main request of a model that has
+ * no chance (open-meteo-models.js asksChance): the default model's, over the main request's
+ * GMT days and timestamps, so mapResponse reads it by its 3-hour block from the same hour on.
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {number} [hours] The window mapResponse maps (windowHours); 24 when absent.
+ * @returns {string} Fully-formed request URL.
+ */
+function buildChanceUrl(lat, lon, hours) {
+    return OPEN_METEO_BASE
+        + '?latitude=' + lat
+        + '&longitude=' + lon
+        + '&hourly=precipitation_probability'
+        + '&timeformat=unixtime'
+        + '&timezone=GMT'
+        + '&models=' + openMeteoModels.DEFAULT
+        + '&forecast_days=' + forecastDays(hours);
 }
 
 /**
@@ -669,56 +769,130 @@ function fetchReadingsInto(provider, lat, lon, readings, done) {
     });
 }
 
+// The weather models that had no forecast for a place (noForecast), each with the place, to a
+// tenth of a degree: a fetch there asks the default model at once, without the request the model
+// would refuse again, until the watch is somewhere else. Kept in memory only, so a PKJS start
+// asks the model again.
+var noForecastAt = {};
+
+/**
+ * A place to a tenth of a degree (about 11 km), the key noForecastAt keeps.
+ * @param {*} lat Latitude, a number or decimal text.
+ * @param {*} lon Longitude.
+ * @returns {string}
+ */
+function placeKey(lat, lon) {
+    return Math.round(Number(lat) * 10) / 10 + ',' + Math.round(Number(lon) * 10) / 10;
+}
+
+/**
+ * Whether a main request's failure says the model has no forecast for the place: Open-Meteo
+ * answers HTTP 400 outside a regional model's area, and a model can answer without a day of
+ * temperatures or a chance there (mapResponse). The fetch takes the default model instead. Any
+ * other failure (the server, the connection, the daily limit) would be the default's too.
+ * @param {{code: string}} mainFailure The failure value (requestMapped).
+ * @returns {boolean}
+ */
+function noForecast(mainFailure) {
+    return mainFailure.code === 'openmeteo_status_400' || mainFailure.code === 'openmeteo_missing_fields';
+}
+
+/**
+ * Ask for one model's forecast and map it: for a model without a chance, ECMWF's chance
+ * request first, whose answer the main one is mapped with (a failed one fails the forecast).
+ * @param {string} model A model id (open-meteo-models.js).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {number} hours The graph's window (windowHours).
+ * @param {Function} onMapped Receives the mapped forecast.
+ * @param {Function} onFailure Receives a failure value.
+ * @returns {void}
+ */
+function requestForecast(model, lat, lon, hours, onMapped, onFailure) {
+    var main = function(chance) {
+        WeatherProvider.requestMapped({
+            url: buildForecastUrl(lat, lon, hours, model), id: 'openmeteo', label: 'Open-Meteo',
+            map: function(json) {
+                return mapResponse(json, Math.floor(Date.now() / 1000), hours, { model: model, chance: chance });
+            }
+        }, onMapped, onFailure);
+    };
+    if (!openMeteoModels.asksChance(model)) {
+        main(null);
+        return;
+    }
+    WeatherProvider.requestMapped({
+        url: buildChanceUrl(lat, lon, hours), id: 'openmeteo_chance', label: 'Open-Meteo chance',
+        map: function(json) { return hasChanceArrays(json && json.hourly) ? json : null; }
+    }, main, onFailure);
+}
+
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
     // assigns the mapped forecast (gustTrend included — ecmwf_ifs025 returns
     // all-null gusts, so the aux call below overrides when available).
     // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
-    WeatherProvider.requestMapped({
-        url: buildForecastUrl(lat, lon, hours), id: 'openmeteo', label: 'Open-Meteo',
-        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000), hours); }
-    }, (function(mapped) {
+    var self = this;
+    // The settings' weather model (fetch-options.js openMeteoModel), or the default where it
+    // had no forecast for this place.
+    var picked = openMeteoModels.modelRow(this.options.openMeteoModel).id;
+    var place = placeKey(lat, lon);
+    var model = noForecastAt[picked] === place ? openMeteoModels.DEFAULT : picked;
+    var adopt = function(mapped) {
         // Total: feels, dew point, the wind bearing and UV ride the aux calls
         // below, so the mapped shape lacks their keys and adoptMapped leaves them
         // []/null — on a reused provider instance an aux failure degrades to
         // line-off / '--' / no arrow instead of shipping the previous window's
         // values against the new startTime.
-        this.adoptMapped(mapped);
-        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts,
-        // apparent temperature, dew point or the wind bearing, so fetch them all
-        // from best_match and align by timestamp. Non-fatal: a failed or empty
-        // call just leaves what adoptMapped set (the main response's gusts,
-        // []/null feels, dew and bearing), so the gust/feels lines stay hidden,
-        // the dew slot shows '--' and the wind arrow is omitted rather than
-        // failing the whole forecast.
-        var gustUrl = buildGustUrl(lat, lon, dayPeaks.wanted(this, 'gust'), hours);
-        request(gustUrl, 'GET', (function(gustResponse) {
+        self.adoptMapped(mapped);
+        // The pinned models don't all output 10m gusts, apparent temperature,
+        // dew point or the wind bearing (ECMWF IFS sends none of them), so fetch
+        // them all from best_match and align by timestamp. Non-fatal: a failed
+        // or empty call just leaves what adoptMapped set (the main response's
+        // gusts, []/null feels, dew and bearing), so the gust/feels lines stay
+        // hidden, the dew slot shows '--' and the wind arrow is omitted rather
+        // than failing the whole forecast.
+        var gustUrl = buildGustUrl(lat, lon, dayPeaks.wanted(self, 'gust'), hours);
+        request(gustUrl, 'GET', function(gustResponse) {
             var aux = null;
             var gusts = null;
             try {
                 aux = JSON.parse(gustResponse);
-                gusts = mapGusts(aux, this.startTime, hours);
+                gusts = mapGusts(aux, self.startTime, hours);
             }
             catch (gustEx) {
                 gusts = null;
             }
             if (gusts) {
-                this.gustTrend = gusts;
+                self.gustTrend = gusts;
             }
-            adoptFeels(this, aux);
-            adoptDewAndDirection(this, aux);
-            fetchUvInto(this, lat, lon, onSuccess);
-        }).bind(this), (function(gustError) {
+            adoptFeels(self, aux);
+            adoptDewAndDirection(self, aux);
+            fetchUvInto(self, lat, lon, onSuccess);
+        }, function(gustError) {
             console.log('[!] Open-Meteo gust request failed: ' + JSON.stringify(gustError));
-            fetchUvInto(this, lat, lon, onSuccess);
-        }).bind(this));
-    }).bind(this), onFailure);
+            fetchUvInto(self, lat, lon, onSuccess);
+        });
+    };
+    requestForecast(model, lat, lon, hours, adopt, function(mainFailure) {
+        if (model === openMeteoModels.DEFAULT || !noForecast(mainFailure)) {
+            onFailure(mainFailure);
+            return;
+        }
+        // The picked model has no forecast here: the default's serves, and the fetch's
+        // telemetry carries why once (fetch-cycle.js recoveredFailure).
+        noForecastAt[model] = place;
+        if (!self.recoveredFailure) { self.recoveredFailure = mainFailure; }
+        requestForecast(openMeteoModels.DEFAULT, lat, lon, hours, adopt, onFailure);
+    });
 };
 
 module.exports = {
+    _resetForTests: function() { noForecastAt = {}; },
     mapResponse: mapResponse,
     buildForecastUrl: buildForecastUrl,
+    buildChanceUrl: buildChanceUrl,
     buildGustUrl: buildGustUrl,
     mapGusts: mapGusts,
     mapFeels: mapFeels,

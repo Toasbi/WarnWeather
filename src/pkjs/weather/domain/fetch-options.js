@@ -24,6 +24,8 @@ var feelsLike = require('./feels-like.js');
 var drawnReadings = require('./drawn-readings.js');
 // source-plan.js reads provider-readings.js, a leaf.
 var sourcePlan = require('./source-plan.js');
+// The Open-Meteo weather models: a leaf.
+var openMeteoModels = require('./open-meteo-models.js');
 // forecast-span.js requires hourly-window.js (a leaf), forecast-axis.js (line-style.js, as
 // forecast-series.js already does) and forecast-span-hours.js (that and view-cycle.js, a
 // leaf), so the invariant above holds.
@@ -81,7 +83,11 @@ var DEFAULTS = {
     // Where the weather comes from besides the Provider (Setup › Data sources;
     // source-plan.js sourcesOf): the reading picks and the providers whose key is stored.
     // Frozen like drawn.
-    sources: Object.freeze({ choices: Object.freeze({}), keyed: Object.freeze([]) })
+    sources: Object.freeze({ choices: Object.freeze({}), keyed: Object.freeze([]) }),
+    // The weather model Open-Meteo answers the Provider's forecast with (open-meteo-models.js
+    // modelOf: the default unless Open-Meteo is the Provider). Its UV, gust and fill requests
+    // keep their own models.
+    openMeteoModel: openMeteoModels.DEFAULT
 };
 // Shared and exported: frozen so no consumer can shift every later provider's
 // default by writing to it (Object.freeze is ES5).
@@ -171,7 +177,8 @@ function build(settings, watchInfo, env) {
         // The forecast's time span: the stored option's 14 | 24 | 68 hours on an emery (26 for
         // 24 h with no left axis), 24 on every other watch and an unknown one (their inboxes
         // cannot take a 68-hour bundle).
-        forecastHours: forecastSpan.hours(graph, watchEnv)
+        forecastHours: forecastSpan.hours(graph, watchEnv),
+        openMeteoModel: openMeteoModels.modelOf(settings)
     });
 }
 
