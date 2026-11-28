@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const featureTips = require('../../../src/pkjs/notices/domain/feature-tips.js');
+const { compareSemver } = require('../../../src/pkjs/notices/domain/release-notifications.js');
 const batteryDays = require('../../../src/pkjs/status-bars/domain/battery-days.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const catalog = require('../../../src/pkjs/status-bars/domain/status-line-catalog.js');
@@ -45,12 +46,8 @@ test('every tip has what the card prints, and a place the page can open', () => 
 });
 
 test('a newer release\'s tips are above an older one\'s', () => {
-  const release = (tip) => tip.since.split('.').map(Number);
   featureTips.TIPS.slice(1).forEach((tip, i) => {
-    const above = release(featureTips.TIPS[i]);
-    const below = release(tip);
-    const newer = below.findIndex((part, k) => part !== above[k]);
-    assert.ok(newer === -1 || below[newer] < above[newer], tip.id + ' (' + tip.since + ') is below a tip of '
+    assert.ok(compareSemver(tip.since, featureTips.TIPS[i].since) <= 0, tip.id + ' (' + tip.since + ') is below a tip of '
       + featureTips.TIPS[i].since);
   });
 });

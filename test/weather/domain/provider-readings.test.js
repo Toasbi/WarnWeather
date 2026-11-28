@@ -54,6 +54,33 @@ function holdsReading(value) {
   return value !== null && value !== undefined;
 }
 
+/**
+ * @param {Object} provider A provider after its fetch.
+ * @returns {string[]} The readings it sent, in the table's order: each whose fields the instance
+ *   keeps all hold a reading.
+ */
+function sentReadings(provider) {
+  return readings.READING_IDS.filter((reading) => readings.keysOf(reading)
+    .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)   // the fields the instance keeps
+    .every((k) => holdsReading(provider[k])));
+}
+
+/**
+ * Check that a provider's fetch makes the requests its row counts, without UV and with it.
+ * @param {string} id A provider id.
+ * @param {string} [model] The Open-Meteo weather model.
+ * @param {Object} [withUv] fetchOwn(id, true, model), where it is made already.
+ * @returns {void}
+ */
+function assertRequests(id, model, withUv) {
+  [false, true].forEach((uv) => {
+    const { outcome, requests } = uv && withUv ? withUv : fetchOwn(id, uv, model);
+    assert.equal(outcome, 'ok');
+    assert.equal(requests.length, readings.requests(id, uv, model), 'UV ' + (uv ? 'on' : 'off') + ':\n'
+      + requests.join('\n'));
+  });
+}
+
 test('every key a forecast keeps belongs to exactly one reading; startTime and the sun times to none', () => {
   const keys = readings.READINGS.map((r) => r.key);
   assert.equal(new Set(keys).size, keys.length, 'no key in two readings');
@@ -78,20 +105,13 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
   test(id + ' sends exactly the readings its row lists', () => {
     const { provider, outcome } = fetchOwn(id, true);
     assert.equal(outcome, 'ok');
-    const sent = readings.READING_IDS.filter((reading) => readings.keysOf(reading)
-      .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)   // the fields the instance keeps
-      .every((k) => holdsReading(provider[k])));
+    const sent = sentReadings(provider);
     assert.deepEqual(sent, readings.PROVIDERS[id].readings);
     readings.READING_IDS.forEach((r) => { assert.equal(readings.serves(id, r), sent.indexOf(r) !== -1, r); });
   });
 
   test(id + ' makes the requests its row counts, with and without UV', () => {
-    [false, true].forEach((withUv) => {
-      const { outcome, requests } = fetchOwn(id, withUv);
-      assert.equal(outcome, 'ok');
-      assert.equal(requests.length, readings.requests(id, withUv), 'UV ' + (withUv ? 'on' : 'off') + ':\n'
-        + requests.join('\n'));
-    });
+    assertRequests(id);
   });
 
   test(id + ' takes its API key from the setting its row names', () => {
@@ -104,18 +124,11 @@ providerFactory.PROVIDER_IDS.forEach((id) => {
 
 openMeteoModels.IDS.forEach((model) => {
   test('openmeteo with ' + model + ' sends the readings and makes the requests the table says', () => {
-    const { provider, outcome } = fetchOwn('openmeteo', true, model);
-    assert.equal(outcome, 'ok');
-    const sent = readings.READING_IDS.filter((reading) => readings.keysOf(reading)
-      .filter((k) => forecastModel.ADOPTED_KEYS.indexOf(k) !== -1)
-      .every((k) => holdsReading(provider[k])));
-    assert.deepEqual(sent, readings.readingsOf('openmeteo', model));
+    const fetched = fetchOwn('openmeteo', true, model);
+    assert.equal(fetched.outcome, 'ok');
+    assert.deepEqual(sentReadings(fetched.provider), readings.readingsOf('openmeteo', model));
     assert.equal(readings.serves('openmeteo', 'rainAmount', model), openMeteoModels.bringsAmount(model));
-    [false, true].forEach((withUv) => {
-      const fetched = fetchOwn('openmeteo', withUv, model);
-      assert.equal(fetched.requests.length, readings.requests('openmeteo', withUv, model),
-        'UV ' + (withUv ? 'on' : 'off') + ':\n' + fetched.requests.join('\n'));
-    });
+    assertRequests('openmeteo', model, fetched);
   });
 });
 

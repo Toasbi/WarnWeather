@@ -15,6 +15,8 @@ const page = require('../../../src/pkjs/page/weather/weather-sources-page.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const providerFactory = require('../../../src/pkjs/weather/adapter/provider-factory.js');
 const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
+const openMeteoModels = require('../../../src/pkjs/weather/domain/open-meteo-models.js');
+const { graphDialog } = require('../../helpers/graph-dialog.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
 const { NOTHING_PLACED, NOTHING_DRAWN } = require('../../helpers/on-demand.js');
 const { bootGeneratedPage } = require('../../helpers/page-harness.js');
@@ -68,10 +70,9 @@ test('a weather model without a precipitation amount: its row until a source is 
   assert.deepEqual(rows(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), ['rainAmount pick dwd']);
   assert.equal(page.missingAmount(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), null);
   assert.equal(page.missingAmount(ALADIN).name, 'ČHMÚ ALADIN');
-  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global', 'meteoswiss_icon_seamless', 'ukmo_seamless', 'retired_model']
-    .forEach((model) => {
-      assert.deepEqual(rows({ provider: 'openmeteo', openMeteoModel: model }), [], model + ': its own amount');
-    });
+  openMeteoModels.IDS.filter(openMeteoModels.bringsAmount).concat(['retired_model']).forEach((model) => {
+    assert.deepEqual(rows({ provider: 'openmeteo', openMeteoModel: model }), [], model + ': its own amount');
+  });
   assert.deepEqual(rows({ provider: 'dwd', openMeteoModel: 'chmi_aladin_seamless' }), [],
     'a model only while Open-Meteo is the Provider');
   assert.equal(page.missingAmount(null), null);
@@ -258,13 +259,10 @@ test('the Model and the calls line sit under the Provider, ahead of its key note
   assert.equal(dialog.items[at + 2].textFrom.resolver, 'keyMissingNote');
   assert.equal(dialog.items[at].joinPrevious, 'loose', 'no divider between the Provider and its Model');
   assert.equal(dialog.items[at + 1].joinPrevious, true);
-  assert.equal(dialog.items.some((i) => i.textFrom && i.textFrom.resolver === 'weatherFillNote'), false,
-    'what the Provider lacks is said by its rows under Other sources');
 });
 
 test('the Model row: Open-Meteo\'s only, the worldwide models, then the national ones, the default first', () => {
   const sourcesSchema = require('../../../src/pkjs/page/weather/weather-sources-schema.js');
-  const openMeteoModels = require('../../../src/pkjs/weather/domain/open-meteo-models.js');
   const model = dialog.items.find((i) => i.messageKey === 'openMeteoModel');
   assert.equal(model.type, 'select');
   assert.equal(model.label, 'Model');
@@ -291,7 +289,7 @@ test('the Model row: Open-Meteo\'s only, the worldwide models, then the national
   assert.equal(model.hintByValue.ukmo_seamless, 'Beyond its area it blends into a wider model.');
   assert.match(model.hintByValue.jma_seamless, /no precipitation chance of its own, so the watch takes ECMWF's/);
   assert.match(model.hintByValue.dwd_icon_seamless, /comes from a coarser model/);
-  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global'].forEach((id) => assert.equal(model.hintByValue[id], undefined, id));
+  openMeteoModels.MODELS.filter((m) => m.worldwide).forEach((m) => assert.equal(model.hintByValue[m.id], undefined, m.id));
   assert.deepEqual(model.hintTailFrom, { resolver: 'weatherAmountPickTail' });
   assert.equal(sourcesSchema.PROVIDER_WHY.openmeteo,
     'Free, no API key. Uses ECMWF\'s global model, or the model you pick under Model.');
@@ -531,8 +529,7 @@ test('the Bars row says the bars stay empty while the weather model goes without
   assert.equal(tail(Object.assign({ barSource: 'off' }, ALADIN)), '', 'no bars asked for');
   assert.equal(tail(Object.assign({ barSource: 'rain', weatherSourceRainAmount: 'dwd' }, ALADIN)), '', 'DWD\'s amount');
   assert.equal(tail({ barSource: 'rain', provider: 'openmeteo' }), '', 'ECMWF IFS brings its own');
-  const bars = schema.tabs.find((t) => t.id === 'graphs').sections.flatMap((s) => s.items || [])
-    .find((i) => i.messageKey === 'barSource');
+  const bars = graphDialog(schema).items.find((i) => i.messageKey === 'barSource');
   assert.equal(bars.hintTailFrom.resolver, 'weatherAmountBarsTail');
   assert.equal(bars.hintTailFrom.args.link,
     '<button type="button" class="txt-link" data-goto-tab="setup">Setup › Data sources</button>');

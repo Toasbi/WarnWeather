@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const openmeteo = require('../../../../src/pkjs/weather/adapter/providers/openmeteo.js');
+const openMeteoModels = require('../../../../src/pkjs/weather/domain/open-meteo-models.js');
 const fetchOptions = require('../../../../src/pkjs/weather/domain/fetch-options.js');
 const { PEAK_HOURS } = require('../../../../src/pkjs/weather/domain/hourly-window.js');
 const mapResponse = openmeteo.mapResponse;
@@ -917,13 +918,14 @@ test('buildChanceUrl asks ECMWF for its chance alone, over the main request\'s G
 
 test('a model whose chance is not its own brings no precipitation amount; the chance stays', () => {
   const nowEpoch = BASE + 11 * 3600 + 600;
-  ['chmi_aladin_seamless', 'dwd_icon_seamless', 'cmc_gem_seamless', 'knmi_seamless'].forEach((model) => {
+  const { IDS, bringsAmount, asksChance } = openMeteoModels;
+  IDS.filter((id) => !bringsAmount(id) && !asksChance(id)).forEach((model) => {
     const out = mapResponse(ensembleResponse(), nowEpoch, 24, { model: model });
     assert.deepEqual(out.rainTrend, [], model + ': no amount');
     assert.equal(out.precipTrend.length, 24, model + ': a chance');
     assert.equal(out.tempTrend.length, 24);
   });
-  ['ecmwf_ifs025', 'ecmwf_ifs', 'ncep_gfs_global', 'meteoswiss_icon_seamless', 'ukmo_seamless'].forEach((model) => {
+  IDS.filter(bringsAmount).forEach((model) => {
     assert.deepEqual(mapResponse(ensembleResponse(), nowEpoch, 24, { model: model }).rainTrend.slice(0, 5),
       [0, 1, 1, 1, 0], model + ': its own amount');
   });
@@ -959,7 +961,7 @@ test('a model without a chance takes ECMWF\'s, read by its 3-hour block from the
   const json = sampleResponse();
   json.hourly.precipitation_probability = json.hourly.time.map(() => null);
   const nowEpoch = BASE + 18 * 3600 + 600;
-  ['meteofrance_seamless', 'jma_seamless'].forEach((model) => {
+  openMeteoModels.IDS.filter(openMeteoModels.asksChance).forEach((model) => {
     const out = mapResponse(json, nowEpoch, 24, { model: model, chance: chanceResponse() });
     assert.deepEqual(out.precipTrend.slice(0, 4), [0.21, 0.21, 0.21, 0.24], model);
     assert.deepEqual(out.rainTrend, [], model + ': no amount beside a chance from another model');

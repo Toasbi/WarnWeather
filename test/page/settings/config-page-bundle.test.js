@@ -883,7 +883,7 @@ test('the new-features card reaches the generated page and registers its block',
     'the flag is cleared on every open (onbuild.js onLoad)');
 });
 
-// The note under the Provider (page/weather/weather-sources-page.js) binds the provider
+// The Weather dialog's page part (page/weather/weather-sources-page.js) binds the provider
 // table, the source plan and the drawn rule while its body runs, and drawn-readings.js binds
 // the line, graph style, slot and alert modules while ITS body runs: out of order, the Setup tab
 // throws on a real phone while every Node test passes through require().
