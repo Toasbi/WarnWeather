@@ -12,15 +12,17 @@ const { execFileSync } = require('node:child_process');
  * @param {string} zone An IANA zone, the child's from its start.
  * @param {Object<string, string>} modules The modules the work takes, by name: each a path
  *   require takes (require.resolve in the test).
- * @param {function(Object<string, *>): *} work Run in the child with the modules by name.
- *   It is sent as its source, so it uses nothing but its argument; what it returns comes back
- *   through JSON.
+ * @param {function(Object<string, *>, *): *} work Run in the child with the modules by name
+ *   and the input. It is sent as its source, so it uses nothing but its arguments; what it
+ *   returns comes back through JSON.
+ * @param {*} [input] The work's second argument, sent through JSON.
  * @returns {*} What the work returned.
  */
-function inZone(zone, modules, work) {
+function inZone(zone, modules, work, input) {
   const required = Object.keys(modules)
     .map((name) => JSON.stringify(name) + ': require(' + JSON.stringify(modules[name]) + ')').join(', ');
-  const out = execFileSync(process.execPath, ['-e', 'const got = (' + work.toString() + ')({ ' + required + ' });'
+  const sent = JSON.stringify(input === undefined ? null : input);
+  const out = execFileSync(process.execPath, ['-e', 'const got = (' + work.toString() + ')({ ' + required + ' }, ' + sent + ');'
     + 'process.stdout.write(JSON.stringify({ zone: Intl.DateTimeFormat().resolvedOptions().timeZone, got: got }));'],
   { env: Object.assign({}, process.env, { TZ: zone }), encoding: 'utf8' });
   const result = JSON.parse(out);

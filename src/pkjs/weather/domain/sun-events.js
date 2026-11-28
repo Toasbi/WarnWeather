@@ -10,6 +10,11 @@ var SUNRISE_ALTITUDE_RAD = -0.833 * Math.PI / 180;
 // polarSunEvents. Real consecutive sunrise/sunset events are always under a
 // day apart; the polar pair is five days apart.
 var POLAR_PAIR_MIN_GAP_S = 2 * 24 * 60 * 60;
+// Civil dawn and dusk: the sun 6 degrees below the horizon, SunCalc's dawn and dusk.
+var CIVIL_TWILIGHT_RAD = -6 * Math.PI / 180;
+// How far ahead the Dawn/dusk slot looks: with no dawn or dusk in two days the
+// sky has none (white nights, midnight sun, the heart of the polar night).
+var TWILIGHT_REACH_MS = 2 * DAY_MS;
 
 /**
  * Whether a sun event carries a real date. SunCalc answers Invalid Date for
@@ -231,6 +236,74 @@ function isPolarSunPair(firstEpoch, secondEpoch) {
     return secondEpoch - firstEpoch > POLAR_PAIR_MIN_GAP_S;
 }
 
+/**
+ * SunCalc's times for one of the phone's days, asked at its local noon: SunCalc
+ * answers for the solar day nearest the moment it is given, and noon keeps that
+ * the day's own across a DST change, where adding 24 h would not.
+ *
+ * @param {Date} now Any moment of the day the offset counts from.
+ * @param {number} offset Days after now's day (negative before it).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @returns {Object} SunCalc.getTimes' answer for that day.
+ */
+function timesOfDay(now, offset, lat, lon) {
+    return SunCalc.getTimes(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, 12), lat, lon);
+}
+
+/**
+ * The next civil dawn or dusk within two days, for the Dawn/dusk slot.
+ * Yesterday's dusk counts too: far north in summer it comes after midnight.
+ * With none in reach, the type says which one the sky waits for: a dusk where
+ * it stays light all night (white nights, midnight sun), a dawn where it stays
+ * dark all day (the heart of the polar night).
+ *
+ * @param {Date} now Reference time.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @returns {{type: string, date: ?Date}} 'dawn' or 'dusk', and its time; null
+ *   when none comes within two days.
+ */
+function nextTwilight(now, lat, lon) {
+    var t = now.getTime();
+    var next = null;
+    [-1, 0, 1, 2].forEach(function(offset) {
+        var times = timesOfDay(now, offset, lat, lon);
+        [{ type: 'dawn', date: times.dawn }, { type: 'dusk', date: times.dusk }].forEach(function(event) {
+            if (!isValidSunEvent(event)) { return; }
+            var at = event.date.getTime();
+            if (at > t && at - t <= TWILIGHT_REACH_MS && (next === null || at < next.date.getTime())) {
+                next = event;
+            }
+        });
+    });
+    if (next !== null) { return next; }
+    var noon = timesOfDay(now, 0, lat, lon).solarNoon;
+    return { type: SunCalc.getPosition(noon, lat, lon).altitude > CIVIL_TWILIGHT_RAD ? 'dusk' : 'dawn', date: null };
+}
+
+/**
+ * How long the sun is up on the phone's today, for the Day length slot: from
+ * sunrise to sunset, each in whole minutes as the sun slot shows them. A day
+ * with neither has the sun up all of it or none, told apart by the sun at
+ * solar noon (as polarSunEvents does).
+ *
+ * @param {Date} now Reference time.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @returns {number} Minutes: 1440 on a day the sun never sets, 0 on one it
+ *   never rises.
+ */
+function dayLengthMinutes(now, lat, lon) {
+    var times = timesOfDay(now, 0, lat, lon);
+    var rise = { type: 'sunrise', date: times.sunrise };
+    var set = { type: 'sunset', date: times.sunset };
+    if (isValidSunEvent(rise) && isValidSunEvent(set)) {
+        return Math.round(set.date.getTime() / MINUTE_MS) - Math.round(rise.date.getTime() / MINUTE_MS);
+    }
+    return SunCalc.getPosition(times.solarNoon, lat, lon).altitude > SUNRISE_ALTITUDE_RAD ? DAY_MS / MINUTE_MS : 0;
+}
+
 module.exports = {
     isValidSunEvent: isValidSunEvent,
     encodeSunEvents: encodeSunEvents,
@@ -239,5 +312,7 @@ module.exports = {
     mirroredSunEvent: mirroredSunEvent,
     polarSunEvents: polarSunEvents,
     nextSunEvents: nextSunEvents,
-    isPolarSunPair: isPolarSunPair
+    isPolarSunPair: isPolarSunPair,
+    nextTwilight: nextTwilight,
+    dayLengthMinutes: dayLengthMinutes
 };

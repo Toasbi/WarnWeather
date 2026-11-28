@@ -513,3 +513,106 @@ test('a phone fix that wanders by some metres sends the same sun events', () => 
   [[0.0002, 0.0002], [-0.0002, 0.0003], [0.0004, -0.0001], [0.0001, 0.0005], [-0.0004, -0.0004]]
     .forEach(([dLat, dLon]) => assert.equal(at(dLat, dLon), here, dLat + ', ' + dLon));
 });
+
+// ---------------------------------------------------------------------------
+// nextTwilight and dayLengthMinutes: the Dawn/dusk and Day length slots. Both read the phone's
+// days, so each case runs in a child process started in the place's zone
+// (test/helpers/in-zone.js), at public city coordinates.
+// ---------------------------------------------------------------------------
+const { inZone } = require('../../helpers/in-zone.js');
+const SUN_EVENTS = require.resolve('../../../src/pkjs/weather/domain/sun-events');
+const HELSINKI = [60.17, 24.94];
+const TRONDHEIM = [63.43, 10.39];
+const LONGYEARBYEN = [78.22, 15.65];
+const MADRID = [40.42, -3.70];
+
+/**
+ * The next dawn or dusk at each of some local times, as 'type day HH:MM' on the phone's clock.
+ * @param {string} zone The phone's zone.
+ * @param {number[]} place [lat, lon].
+ * @param {string[]} times Local times, 'YYYY-MM-DDTHH:MM'.
+ * @returns {string[]} One line per time; '--' for the time when none comes.
+ */
+function twilightsAt(zone, place, times) {
+  return inZone(zone, { sun: SUN_EVENTS }, ({ sun }, { place, times }) => {
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    return times.map((iso) => {
+      const next = sun.nextTwilight(new Date(iso), place[0], place[1]);
+      const d = next.date;
+      return next.type + ' ' + (d ? d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : '--');
+    });
+  }, { place, times });
+}
+
+/**
+ * The day length at each of some local times.
+ * @param {string} zone The phone's zone.
+ * @param {number[]} place [lat, lon].
+ * @param {string[]} times Local times, 'YYYY-MM-DDTHH:MM'.
+ * @returns {number[]} Minutes, one per time.
+ */
+function dayLengthsAt(zone, place, times) {
+  return inZone(zone, { sun: SUN_EVENTS }, ({ sun }, { place, times }) =>
+    times.map((iso) => sun.dayLengthMinutes(new Date(iso), place[0], place[1])), { place, times });
+}
+
+test('Dawn/dusk shows the next civil dawn or dusk: dawn through the night, dusk through the day', () => {
+  assert.deepEqual(twilightsAt('Europe/Berlin', BERLIN,
+    ['2026-11-28T06:00', '2026-11-28T12:00', '2026-11-28T18:00']),
+  ['dawn 28 07:11', 'dusk 28 16:40', 'dawn 29 07:12']);
+});
+
+test('far north in summer, the dusk after midnight is the evening before\'s', () => {
+  // Helsinki's dusk of 20 June comes at 00:43 on the 21st; until then it is still the next.
+  assert.deepEqual(twilightsAt('Europe/Helsinki', HELSINKI,
+    ['2026-06-20T22:00', '2026-06-21T00:00', '2026-06-21T01:00', '2026-06-21T03:00']),
+  ['dusk 21 00:43', 'dusk 21 00:43', 'dawn 21 02:02', 'dusk 22 00:43']);
+});
+
+test('with no dawn or dusk in two days, the slot waits for the one its sky lacks', () => {
+  // White nights and the midnight sun stay light: a dusk. Tromsø in December has twilight
+  // around noon, a real dawn and dusk; Longyearbyen's stays dark: a dawn.
+  assert.deepEqual(twilightsAt('Europe/Oslo', TRONDHEIM, ['2026-06-21T12:00']), ['dusk --']);
+  assert.deepEqual(twilightsAt('Europe/Oslo', TROMSO, ['2026-06-21T12:00']), ['dusk --']);
+  assert.deepEqual(twilightsAt('Europe/Oslo', TROMSO, ['2026-12-21T08:00', '2026-12-21T12:00']),
+    ['dawn 21 09:32', 'dusk 21 13:54']);
+  assert.deepEqual(twilightsAt('Arctic/Longyearbyen', LONGYEARBYEN, ['2026-12-21T12:00']), ['dawn --']);
+});
+
+test('the polar night\'s first dawn shows from two days before it', () => {
+  // Longyearbyen's first civil dawn of 2027 is 31 January at 11:21.
+  assert.deepEqual(twilightsAt('Arctic/Longyearbyen', LONGYEARBYEN,
+    ['2027-01-29T10:00', '2027-01-29T11:30', '2027-01-31T10:00']),
+  ['dawn --', 'dawn 31 11:21', 'dawn 31 11:21']);
+});
+
+test('Day length runs from today\'s sunrise to its sunset, whole minutes as the sun slot shows them', () => {
+  const at = (day) => inZone('Europe/Berlin', { sun: SUN_EVENTS, SunCalc: require.resolve('suncalc') },
+    ({ sun, SunCalc }, { day, place }) => {
+      const times = SunCalc.getTimes(new Date(day + 'T12:00'), place[0], place[1]);
+      const shown = (d) => Math.round(d.getTime() / 60000);
+      return [sun.dayLengthMinutes(new Date(day + 'T09:00'), place[0], place[1]),
+        shown(times.sunset) - shown(times.sunrise)];
+    }, { day, place: BERLIN });
+  // 28 Nov 2026: 8h10 in Berlin, and each day of the year the shown sunrise and sunset's gap.
+  assert.deepEqual(at('2026-11-28'), [490, 490]);
+  for (const day of ['2026-03-20', '2026-06-21', '2026-09-23', '2026-12-21']) {
+    const [length, shown] = at(day);
+    assert.equal(length, shown, day);
+  }
+});
+
+test('a day the sun never sets lasts 24 hours, one it never rises none', () => {
+  assert.deepEqual(dayLengthsAt('Europe/Oslo', TROMSO, ['2026-06-21T12:00', '2026-12-21T12:00']), [1440, 0]);
+  assert.deepEqual(dayLengthsAt('Arctic/Longyearbyen', LONGYEARBYEN, ['2026-12-21T12:00']), [0]);
+  // White nights: the sun still sets, briefly.
+  assert.deepEqual(dayLengthsAt('Europe/Oslo', TRONDHEIM, ['2026-06-21T12:00']), [1235]);
+});
+
+test('Day length is the phone\'s today wherever its clock sits from the sun', () => {
+  // Madrid keeps Central European time, hours from its sun: at 01:00 the nearest solar noon is
+  // still yesterday's, and the equinox moves the day by minutes.
+  const got = dayLengthsAt('Europe/Madrid', MADRID, ['2026-09-21T00:30', '2026-09-21T12:00', '2026-09-21T23:30']);
+  assert.equal(new Set(got).size, 1, JSON.stringify(got));
+  assert.notDeepEqual(dayLengthsAt('Europe/Madrid', MADRID, ['2026-09-20T12:00']), [got[0]]);
+});
