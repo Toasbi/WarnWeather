@@ -7,8 +7,8 @@
 // one it came from lacks comes from Open-Meteo while the watch draws it (fillSteps): DWD's UV
 // by Open-Meteo's UV-only request, Yandex's dew point, wind direction, cloud cover and air
 // pressure by one request for all of them. weather/application/fetch-sources.js runs the steps.
-// The settings page names the fills under the Provider, and the calls a day the steps come to
-// (callsPerDay) under it and at the end of Data sources (page/weather/weather-sources-page.js);
+// The settings page lists the fills under Other sources, and the calls a day the steps come to
+// (callsPerDay) under the Provider and at the end of Data sources (page/weather/weather-sources-page.js);
 // the tomorrow.io budget counts its calls by the same rule (page/weather/budgets/tomorrowio-budget.js).
 //
 // What the watch draws is one list, `drawn`: the drawn-only readings it draws now
@@ -189,16 +189,15 @@
      * The steps a refresh runs while no provider fails: `asked`, the providers it asks for their
      * whole forecast (the Provider, then each part's), and the fills for what they leave. A fill
      * whose provider is asked is laid on from its forecast instead of asked (fetch-sources.js).
-     * `model`, Open-Meteo's weather model, which sets what one of its forecasts asks.
      * @param {Object} input feedsOf()'s input, the place left out where it is unknown.
      * @param {string[]} drawn The drawn-only readings the watch draws.
-     * @returns {{asked: string[], fills: Array<Object>, model: (string|undefined)}}
+     * @returns {{asked: string[], fills: Array<Object>}}
      */
     function steadySteps(input, drawn) {
         var feeds = feedsOf(input, drawn);
         var parts = partSteps(feeds, input.provider);
         return { asked: [input.provider].concat(parts.map(function (step) { return step.provider; })),
-            fills: fillSteps(feeds, drawn), model: input.model };
+            fills: fillSteps(feeds, drawn) };
     }
 
     /**
@@ -217,14 +216,16 @@
      * whose fetch makes its UV request while the watch draws UV (the fetch options' fetchUv)
      * and Open-Meteo's chance request with a weather model that has none, and the fill request
      * that asks apart.
-     * @param {{asked: string[], fills: Array<Object>, model: (string|undefined)}} steps steadySteps().
+     * @param {{asked: string[], fills: Array<Object>}} steps steadySteps().
      * @param {string[]} drawn The drawn-only readings the watch draws.
+     * @param {string} [model] Open-Meteo's weather model (the input's), which sets what one of its
+     *   forecasts asks.
      * @returns {Object<string, number>} provider id → requests
      */
-    function requestsOf(steps, drawn) {
+    function requestsOf(steps, drawn, model) {
         var withUv = drawn.indexOf('uv') !== -1;
         var out = {};
-        steps.asked.forEach(function (id) { out[id] = providerReadings.requests(id, withUv, steps.model); });
+        steps.asked.forEach(function (id) { out[id] = providerReadings.requests(id, withUv, model); });
         steps.fills.forEach(function (step) {
             if (step.ask !== 'uv' && asksApart(steps, step)) { out[step.provider] = (out[step.provider] || 0) + 1; }
         });
@@ -241,7 +242,7 @@
      * @returns {Object<string, number>} provider id → requests
      */
     function refreshRequests(input, drawn) {
-        return requestsOf(steadySteps(input, drawn), drawn);
+        return requestsOf(steadySteps(input, drawn), drawn, input.model);
     }
 
     /**
@@ -268,7 +269,7 @@
     function callsPerDay(input, drawn, intervalMin, pauseHours) {
         var refreshes = refreshesPerDay(intervalMin, pauseHours);
         var steps = steadySteps(input, drawn);
-        var perRefresh = requestsOf(steps, drawn);
+        var perRefresh = requestsOf(steps, drawn, input.model);
         var out = {};
         Object.keys(perRefresh).forEach(function (id) { out[id] = perRefresh[id] * refreshes; });
         if (steps.fills.some(function (step) { return step.ask === 'uv' && asksApart(steps, step); })) {

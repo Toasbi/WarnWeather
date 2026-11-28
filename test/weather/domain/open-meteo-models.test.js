@@ -18,8 +18,16 @@ test('the default first, the other worldwide models, then the national ones by c
   models.MODELS.forEach((m) => {
     assert.ok(m.name && m.area && /^\d+(\.\d+)? km$/.test(m.grid), m.id);
     assert.ok(['own', 'borrowed', 'coarser', 'none'].indexOf(m.chance) !== -1, m.id);
-    assert.ok(m.chanceHours === 1 || m.chanceHours === 3, m.id);
+    assert.ok(m.chance === 'none' ? m.chanceHours === null : m.chanceHours === 1 || m.chanceHours === 3, m.id);
   });
+});
+
+test('a fetch reads the chance from the model\'s own answer, or from the default\'s beside a model with none', () => {
+  models.IDS.forEach((id) => {
+    assert.equal(models.chanceRow(id).id, models.asksChance(id) ? models.DEFAULT : id, id);
+  });
+  assert.equal(models.chanceRow('meteofrance_seamless').chanceHours, 3, 'ECMWF\'s ensemble steps every 3 hours');
+  assert.equal(models.chanceRow('gone_model').id, models.DEFAULT);
 });
 
 test('only a model whose chance is its own brings a precipitation amount', () => {

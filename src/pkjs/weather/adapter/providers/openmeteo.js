@@ -211,7 +211,8 @@ function mapResponse(json, nowEpoch, hours, ask) {
     var hourly = json && json.hourly;
     var current = json && json.current;
     var times = hourly && hourly.time;
-    var chanceHourly = model.chance === 'none' ? (ask && ask.chance && ask.chance.hourly) : hourly;
+    // The chance's own answer: this one, or the default's beside a model with none.
+    var chanceHourly = openMeteoModels.asksChance(model.id) ? (ask && ask.chance && ask.chance.hourly) : hourly;
     var anchor;
 
     if (!hourly || !current || !Array.isArray(times)
@@ -225,24 +226,28 @@ function mapResponse(json, nowEpoch, hours, ask) {
     }
 
     anchor = anchorIndex(times, nowEpoch);
-    if (anchor < 0 || times.length - anchor < FORECAST_HOURS) {
+    if (anchor < 0) {
         return null;
     }
-
     // The long span takes the hours past the base 24 the response holds with a
     // temperature (buildForecastUrl asks for a fourth day then).
     var count = numberRun(hourly.temperature_2m, anchor,
         hourlyWindow.hourlyRun(times, anchor, hours || FORECAST_HOURS));
+    if (count < FORECAST_HOURS) {
+        return null;
+    }
     var end = anchor + count;
     // Preceding-hour fields: one bucket ahead (see the doc comment), the chance
-    // by its block. forecast_days=3 at GMT is 72 buckets (4 and 96 past 24 h:
-    // emery's 26 or 68) and the anchor is at most 23, so the bucket after the
-    // window and the last slot's block boundary are there for a well-formed
-    // response.
-    var chance = count >= FORECAST_HOURS ? chanceSlice(chanceHourly, times[anchor], count, model.chanceHours) : null;
+    // by its block, at the step of the model it comes from. forecast_days=3 at
+    // GMT is 72 buckets (4 and 96 past 24 h: emery's 26 or 68) and the anchor is
+    // at most 23, so the bucket after the window and the last slot's block
+    // boundary are there for a well-formed response.
+    var chance = chanceSlice(chanceHourly, times[anchor], count, openMeteoModels.chanceRow(model.id).chanceHours);
     if (!chance) {
         return null;
     }
+    var pressure = Array.isArray(hourly.pressure_msl) ? hourly.pressure_msl.slice(anchor, end) : null;
+    var cloud = Array.isArray(hourly.cloud_cover) ? hourly.cloud_cover.slice(anchor, end) : null;
     return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
         precipTrend: chance,
@@ -256,16 +261,14 @@ function mapResponse(json, nowEpoch, hours, ask) {
         gustTrend: precedingHourSlice(hourly.windgusts_10m, anchor, times.length, null, count),
         // Optional, unlike the guarded fields above: an absent series, or one
         // without a number in the window, degrades to line-off rather than
-        // failing the whole fetch. Verified 2026-08-12 that the pinned
-        // ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m, which
-        // it returns all-null — hence the separate gust call below).
-        pressureTrend: Array.isArray(hourly.pressure_msl) && holdsReading(hourly.pressure_msl.slice(anchor, end))
-            ? hourly.pressure_msl.slice(anchor, end) : [],
+        // failing the whole fetch. Verified 2026-08-12 that the default model,
+        // ECMWF IFS, does emit pressure_msl (unlike windgusts_10m, which it
+        // returns all-null, hence the separate gust call below).
+        pressureTrend: holdsReading(pressure) ? pressure : [],
         // Optional like pressure: cloud cover (%) and its low/mid/high layers
         // ride the main request. An absent total, or one without a number in the
         // window → [] → the cloud line stays off, rather than a clear sky.
-        cloudTrend: Array.isArray(hourly.cloud_cover) && holdsReading(hourly.cloud_cover.slice(anchor, end))
-            ? cloudSlice(hourly, anchor, end) : [],
+        cloudTrend: holdsReading(cloud) ? cloudSlice(hourly, anchor, end) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m,
         currentCondition: condition.fromWmo(current.weather_code)
@@ -306,7 +309,7 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  *
  * The current block carries the WMO weather_code beside the temperature: the
  * condition slot's "now", from the same model as the rain bars and the cloud
- * line. The pinned model does answer it, current and hourly (verified
+ * line. The default model does answer it, current and hourly (verified
  * 2026-11-13), unlike the derived fields the aux call fetches.
  *
  * @param {number} lat Latitude in decimal degrees.
@@ -342,29 +345,31 @@ function forecastDays(hours) {
 }
 
 /**
- * Build the request for ECMWF's chance alone, beside the main request of a model that has
- * no chance (open-meteo-models.js asksChance): the default model's, over the main request's
- * GMT days and timestamps, so mapResponse reads it by its 3-hour block from the same hour on.
+ * Build the request for the chance alone, beside the main request of a model that has no
+ * chance (open-meteo-models.js asksChance): the model it takes its chance from (chanceRow, the
+ * default), over the main request's GMT days and timestamps, so mapResponse reads it by that
+ * model's block from the same hour on.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} [hours] The window mapResponse maps (windowHours); 24 when absent.
+ * @param {string} [model] The main request's model; the default when absent.
  * @returns {string} Fully-formed request URL.
  */
-function buildChanceUrl(lat, lon, hours) {
+function buildChanceUrl(lat, lon, hours, model) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
         + '&hourly=precipitation_probability'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&models=' + openMeteoModels.DEFAULT
+        + '&models=' + openMeteoModels.chanceRow(model).id
         + '&forecast_days=' + forecastDays(hours);
 }
 
 /**
  * Build a minimal Open-Meteo request for the derived hourly fields: 10m wind
  * gusts, apparent temperature (feels-like), dew point and 10m wind bearing. The
- * main forecast pins models=ecmwf_ifs025 for the rain bars, but ECMWF IFS
+ * main forecast asks the picked weather model (ECMWF IFS by default), and ECMWF IFS
  * doesn't output derived fields (they come back all-null), so all four ride this
  * always-fetched best_match call instead — dew point and the bearing cost no
  * extra request, which is why neither needs a fetch gate. temperature_unit is
@@ -539,8 +544,8 @@ function adoptFeels(provider, json) {
     var feels = json ? mapFeels(json, provider.startTime, hours) : null;
     // The Steadman option takes its moisture from this call's dew point (the
     // series adoptDewAndDirection maps for the dew slot), not a relative
-    // humidity: the temps are the main call's pinned ECMWF model while this call
-    // is best_match, and an RH only means something at the temperature it was
+    // humidity: the temps are the main call's model (ECMWF IFS by default) while
+    // this call is best_match, and an RH only means something at the temperature it was
     // computed for, whereas a dew point carries the moisture model's own vapour
     // pressure whichever T it is paired with (feelsLikeFromDewF). Read only
     // under Steadman: under 'provider' a response with a dew point but no
@@ -567,8 +572,8 @@ function adoptFeels(provider, json) {
 /**
  * Build a minimal keyless Open-Meteo request for hourly UV index only,
  * mirroring the gust call's unixtime/GMT conventions so buckets align with the
- * main window by timestamp (the main forecast's ecmwf_ifs025 pin omits UV, and
- * DWD has no UV at all). Pins GFS: it is the source of Open-Meteo's UV almost
+ * main window by timestamp (ECMWF IFS, the main forecast's default model, omits
+ * UV, and DWD has no UV at all). Pins GFS: it is the source of Open-Meteo's UV almost
  * everywhere, and its UV is the MEAN of the hour ending at the stamp (built
  * from GFS's time-averaged UV-B flux) -- but best_match hands the UK and
  * Ireland to the Met Office UKV model, whose UV is an instant at the stamp, so
@@ -690,8 +695,8 @@ function mapFillPressure(json, startTime, hours) {
 // Open-Meteo's request for the other readings a provider lacks (fetchReadingsInto), per reading
 // it brings: the hourly fields it asks for, the series they land on and how they are read,
 // aligned by time to the provider's startTime. All four are values at the hour's stamp, so none
-// reads a bucket ahead, and all four come from best_match: ECMWF IFS, which the main request
-// pins, sends no dew point or wind bearing. A reading whose window holds no number keeps what
+// reads a bucket ahead, and all four come from best_match: ECMWF IFS, the main request's
+// default model, sends no dew point or wind bearing. A reading whose window holds no number keeps what
 // the provider had (holdsReading).
 var FILL_FIELDS = {
     dew: { hourly: ['dew_point_2m'], key: 'dewTrend', map: mapDew },
@@ -822,15 +827,15 @@ function requestForecast(model, lat, lon, hours, onMapped, onFailure) {
         return;
     }
     WeatherProvider.requestMapped({
-        url: buildChanceUrl(lat, lon, hours), id: 'openmeteo_chance', label: 'Open-Meteo chance',
+        url: buildChanceUrl(lat, lon, hours, model), id: 'openmeteo_chance', label: 'Open-Meteo chance',
         map: function(json) { return hasChanceArrays(json && json.hourly) ? json : null; }
     }, main, onFailure);
 }
 
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
-    // assigns the mapped forecast (gustTrend included — ecmwf_ifs025 returns
-    // all-null gusts, so the aux call below overrides when available).
+    // assigns the mapped forecast (gustTrend included: ECMWF IFS, the default
+    // model, returns all-null gusts, so the aux call below overrides when available).
     // The graph's window: 24 hours, or emery's 26 or 68 (fetch-options.js).
     var hours = hourlyWindow.windowHours(this.options);
     var self = this;

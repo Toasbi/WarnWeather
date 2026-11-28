@@ -482,7 +482,8 @@ _Avoid_: metric (a metric is what a graph line or slot draws), field.
 The forecast model the Open-Meteo Provider asks (`openMeteoModel`, the Weather dialog's Model
 row under the Provider; `src/pkjs/weather/domain/open-meteo-models.js`): ECMWF IFS at 25 km by
 default, two other worldwide models, or a national one. It applies only while Open-Meteo is the
-Provider: for a reading pick and for the fills, Open-Meteo answers with the default. A model's
+Provider: for a reading pick Open-Meteo answers with the default, and its fills, UV and gusts
+keep their own models. A model's
 precipitation chance is its own, ECMWF's or a coarser model's, and only a model whose chance is
 its own brings a precipitation amount, since an amount beside another model's chance does not
 match it. A model with no chance at all (Météo-France AROME, JMA MSM) takes ECMWF's, asked

@@ -58,15 +58,17 @@
     // `hours`, where its feed stops short of the long span's full 68 hours
     // (forecast-span-hours.js): OpenWeatherMap's One Call hourly list, Weather Underground's
     // 48-hour endpoint and the hour in progress. Weather Underground fetches its key from
-    // wunderground.com first when it has none. Open-Meteo's readings and requests follow the
-    // weather model it answers with too (open-meteo-models.js; readingsOf, requests): the row
-    // holds the default's.
+    // wunderground.com first when it has none. `answers`, the fetch options (fetch-options.js)
+    // its own answer depends on beyond every provider's, by the name a forecast snapshot keys
+    // them under (forecast-snapshot.js). Open-Meteo's readings and requests follow the weather
+    // model it answers with too (open-meteo-models.js; rowFor): the row holds the default's.
     var PROVIDERS = {
         // DWD has no UV. Bright Sky covers Germany and the countries around it (the box of
         // plugins/dwd/src/bright-sky.js, its stand-alone plugin).
         dwd: { readings: without(ALL, ['uv']), key: null,
             area: { south: 45.5, north: 56.0, west: 5.0, east: 17.5 }, requests: 2 },
-        openmeteo: { readings: ALL, key: null, area: null, requests: 2, uvRequest: true },
+        openmeteo: { readings: ALL, key: null, area: null, requests: 2, uvRequest: true,
+            answers: { model: 'openMeteoModel' } },
         metno: { readings: ALL, key: null, area: null, requests: 1 },
         openweathermap: { readings: ALL, key: 'owmApiKey', area: null, requests: 1, hours: 48 },
         tomorrowio: { readings: ALL, key: 'tomorrowioApiKey', area: null, requests: 1 },
@@ -87,19 +89,40 @@
             ? PROVIDERS[providerId] : null;
     }
 
+    // Open-Meteo's row with each weather model (rowFor), made once: the default's (PROVIDERS'
+    // own), without the precipitation amount where the model's chance is not its own
+    // (open-meteo-models.js bringsAmount; the drawn-only readings come by its other requests),
+    // and with one request more where it has no chance, for ECMWF's (asksChance).
+    var MODEL_ROWS = {};
+    openMeteoModels.IDS.forEach(function (id) {
+        var row = PROVIDERS[openMeteoModels.PROVIDER];
+        MODEL_ROWS[id] = Object.assign({}, row, {
+            readings: openMeteoModels.bringsAmount(id) ? row.readings : without(row.readings, ['rainAmount']),
+            requests: row.requests + (openMeteoModels.asksChance(id) ? 1 : 0)
+        });
+    });
+
     /**
-     * The readings a provider sends: its row's, and for Open-Meteo those of the weather model it
-     * answers with: a model whose chance is not its own sends no precipitation amount (none of
-     * the drawn-only readings, which its other requests bring).
+     * A provider's row as one of its fetches finds it: Open-Meteo's with the weather model it
+     * answers with (MODEL_ROWS).
+     * @param {*} providerId A provider id.
+     * @param {string} [model] The Open-Meteo weather model; the default when absent or unknown.
+     * @returns {?Object} Its row; null for an unknown provider.
+     */
+    function rowFor(providerId, model) {
+        var row = rowOf(providerId);
+        return row && providerId === openMeteoModels.PROVIDER ? MODEL_ROWS[openMeteoModels.modelRow(model).id] : row;
+    }
+
+    /**
+     * The readings a provider sends, with the weather model it answers with (rowFor).
      * @param {*} providerId A provider id.
      * @param {string} [model] The Open-Meteo weather model; the default when absent.
      * @returns {string[]} READINGS ids, in its order; none for an unknown provider
      */
     function readingsOf(providerId, model) {
-        var row = rowOf(providerId);
-        if (!row) { return []; }
-        return providerId === openMeteoModels.PROVIDER && !openMeteoModels.bringsAmount(model)
-            ? without(row.readings, ['rainAmount']) : row.readings;
+        var row = rowFor(providerId, model);
+        return row ? row.readings : [];
     }
 
     /**
@@ -159,18 +182,27 @@
     }
 
     /**
-     * The requests one fetch of a provider makes: Open-Meteo's one more for ECMWF's chance with
-     * a weather model that has none.
+     * The requests one fetch of a provider makes, with the weather model it answers with (rowFor).
      * @param {*} providerId A provider id.
      * @param {boolean} withUv Whether the fetch asks for UV.
      * @param {string} [model] The Open-Meteo weather model; the default when absent.
      * @returns {number} 0 for an unknown provider
      */
     function requests(providerId, withUv, model) {
+        var row = rowFor(providerId, model);
+        return row ? row.requests + (withUv && row.uvRequest ? 1 : 0) : 0;
+    }
+
+    /**
+     * The fetch options a provider's own answer depends on beyond every provider's (its row's
+     * `answers`).
+     * @param {*} providerId A provider id.
+     * @returns {Object<string, string>} The fetch option, by the name a snapshot keys it under;
+     *   none for a provider whose answer depends on no more, and an unknown one.
+     */
+    function answerOptions(providerId) {
         var row = rowOf(providerId);
-        if (!row) { return 0; }
-        return row.requests + (withUv && row.uvRequest ? 1 : 0)
-            + (providerId === openMeteoModels.PROVIDER && openMeteoModels.asksChance(model) ? 1 : 0);
+        return row && row.answers ? row.answers : {};
     }
 
     /**
@@ -196,6 +228,7 @@
         keySetting: keySetting,
         covers: covers,
         requests: requests,
+        answerOptions: answerOptions,
         hours: hours
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

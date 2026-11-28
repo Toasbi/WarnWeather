@@ -8,6 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const snap = require('../../../src/pkjs/weather/domain/forecast-snapshot.js');
 const fetchOptions = require('../../../src/pkjs/weather/domain/fetch-options.js');
+const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 const forecastModel = require('../../../src/pkjs/weather/domain/forecast-model.js');
 const { fingerprint } = require('../../../src/pkjs/weather/domain/keys/key-fingerprint.js');
 
@@ -106,19 +107,28 @@ test('a query keeps the place to three decimals, and what the answer depends on,
 });
 
 test('every fetch option either changes the request or is one no answer depends on', () => {
-  // Open-Meteo's forecast: the one whose answer depends on every option outside ANSWER_NEUTRAL.
-  const base = provider({ id: 'openmeteo', apiKey: '' });
+  // Each provider's forecast: an option outside ANSWER_NEUTRAL changes every provider's request,
+  // or only the requests of those whose own answer depends on it (provider-readings.js
+  // answerOptions: Open-Meteo's weather model).
   const changed = { fetchUv: false, fetchAqi: true, fetchPollen: true, fetchFeels: false, feelsFormula: 'steadman',
     dayPeakCodes: ['wind'], windUnits: 'mph', aqiScale: 'us', aqiSource: 'openmeteo', aqicnToken: 'x', forecastHours: 68,
     drawn: ['cloud'], sources: { choices: { wind: 'dwd' }, keyed: ['yandex'] }, openMeteoModel: 'chmi_aladin_seamless' };
   assert.deepEqual(Object.keys(changed).sort(), Object.keys(fetchOptions.defaults()).sort(),
     'every option has a changed value here');
-  Object.keys(changed).forEach((key) => {
-    const over = {};
-    over[key] = changed[key];
-    const same = JSON.stringify(queryFor(base).request)
-      === JSON.stringify(queryFor(provider({ id: 'openmeteo', apiKey: '', options: over })).request);
-    assert.equal(same, snap.ANSWER_NEUTRAL.indexOf(key) !== -1, key);
+  const ids = Object.keys(providerReadings.PROVIDERS);
+  const own = (id) => Object.values(providerReadings.answerOptions(id));
+  const someones = [].concat(...ids.map(own));
+  assert.deepEqual(someones, ['openMeteoModel']);
+  ids.forEach((id) => {
+    const base = provider({ id: id, apiKey: '' });
+    Object.keys(changed).forEach((key) => {
+      const over = {};
+      over[key] = changed[key];
+      const same = JSON.stringify(queryFor(base).request)
+        === JSON.stringify(queryFor(provider({ id: id, apiKey: '', options: over })).request);
+      const neutral = snap.ANSWER_NEUTRAL.indexOf(key) !== -1 || (someones.indexOf(key) !== -1 && own(id).indexOf(key) === -1);
+      assert.equal(same, neutral, id + ': ' + key);
+    });
   });
 });
 
