@@ -47,12 +47,14 @@ var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // healthy chain is bounded by its own timeouts, step after step: the GPS fix
 // (10 s) or the address's geocode; the radar (twice for Rainbow (own key), which
 // retries without its start time; the sky rows ask alongside); the city; the
-// forecast's providers one after another (up to three requests for DWD and
-// Open-Meteo, five for Weather Underground when it re-scrapes a refused key; the
-// reading picks may ask every provider) and the two fills; AQI (twice when Auto falls
-// back); pollen. Each request takes at most 10 s (weather/adapter/http.js
-// XHR_TIMEOUT_MS), then comes the AppMessage ACK: 24 such waits at the very worst
-// (test/shell/fetch-cycle.test.js counts them). So one still running after 5 min
+// forecast's providers one after another (provider-readings.js requests; five for
+// Open-Meteo when its weather model asks ECMWF's chance first and then falls back to
+// the default's, five for Weather Underground when it re-scrapes a refused key; the
+// reading picks may ask every provider) and the two fills, which never run while
+// Open-Meteo is the Provider; AQI (twice when Auto falls back); pollen. Each request
+// takes at most 10 s (weather/adapter/http.js XHR_TIMEOUT_MS), then comes the
+// AppMessage ACK: 24 such waits at the very worst (test/shell/fetch-cycle.test.js
+// counts them). So one still running after 5 min
 // had a callback that threw or never came back, and its in-progress flag would
 // otherwise block every later fetch until PKJS restarts.
 var FETCH_WATCHDOG_MS = 5 * 60 * 1000;
@@ -629,6 +631,9 @@ function createFetchCycle(deps) {
         function onFetchFailure(failure, radarTuples) {
             if (!settle()) { return; }
             console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
+            // What the fetch worked around on its way is moot once it failed: its failure is what
+            // it reports. Kept, it would ride the next success's telemetry (onFetchSuccess).
+            provider.recoveredFailure = null;
             // A 401/403 won't recover on its own — set the backoff so we stop
             // re-fetching a doomed key every cycle until the user forces a retry.
             if (deps.authBackoff.isAuthFailure(failure)) {

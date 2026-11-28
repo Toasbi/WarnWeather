@@ -170,6 +170,24 @@ test('where the model has no forecast, the fetch takes the default\'s and rememb
   assert.equal(mainModels(urls)[0], 'meteoswiss_icon_seamless', 'each model by its own places');
 });
 
+test('the fetch remembers a few places without a forecast: a position across a tenth\'s edge asks the model once', () => {
+  openmeteo._resetForTests();
+  const urls = serve({ chmi_aladin_seamless: { fail: { code: 'status_400' } } });
+  const p = providerWith('chmi_aladin_seamless');
+  const asked = (lat) => {
+    urls.length = 0;
+    assert.equal(fetch(p, lat, -74.0), null);
+    return mainModels(urls);
+  };
+  const both = ['chmi_aladin_seamless', 'ecmwf_ifs025'];
+  assert.deepEqual(asked(40.749), both);
+  assert.deepEqual(asked(40.751), both, 'the next tenth');
+  assert.deepEqual(asked(40.749), ['ecmwf_ifs025'], 'back across the edge: still known');
+  assert.deepEqual(asked(40.751), ['ecmwf_ifs025']);
+  [41.0, 41.2, 41.4, 41.6].forEach((lat) => assert.deepEqual(asked(lat), both, String(lat)));
+  assert.deepEqual(asked(40.749), both, 'four newer places later, the first is asked again');
+});
+
 test('an answer without a day of temperatures takes the default too', () => {
   openmeteo._resetForTests();
   const urls = serve({ chmi_aladin_seamless: mainAnswer({ temperature_2m: series(72, () => null) }) });

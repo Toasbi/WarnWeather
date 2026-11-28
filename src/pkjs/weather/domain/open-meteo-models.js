@@ -27,6 +27,9 @@
     var WORLDWIDE = 'Worldwide';
     var MODELS = [
         { id: 'ecmwf_ifs025', name: 'ECMWF IFS', area: WORLDWIDE, grid: '25 km', chance: 'own' },
+        // HRES and GFS read the chance from their own model's ensemble at 25 km: HRES the
+        // default's, hour for hour, GFS GEFS's. Their amounts fit it as well as the default's
+        // do (checked 2026-11-28).
         { id: 'ecmwf_ifs', name: 'ECMWF IFS HRES', area: WORLDWIDE, grid: '9 km', chance: 'own' },
         { id: 'ncep_gfs_global', name: 'NOAA GFS', area: WORLDWIDE, grid: '13 km', chance: 'own' },
         { id: 'geosphere_seamless', name: 'GeoSphere C-LAEF', area: 'Austria', grid: '1 km', chance: 'borrowed' },

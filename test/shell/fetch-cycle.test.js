@@ -608,6 +608,24 @@ test('success: a failure the provider worked around is tracked once, before the 
     assert.equal(h.calls.telemetry.length, 3, 'the next fetch tracks its success alone');
 });
 
+test('failure: what the fetch worked around before it failed is not tracked with a later success', () => {
+    resetStore();
+    const h = makeHarness();
+    const p = h.provider;
+    h.cycle.start(false);
+    p.fix(52.5, 13.4);
+    p.recoveredFailure = { stage: 'provider_data', code: 'fake_no_forecast_here' };
+    p.fail({ stage: 'provider_data', code: 'fake_status_503' });
+    assert.equal(p.recoveredFailure, null);
+
+    h.cycle.start(true);
+    p.fix(52.5, 13.4);
+    p.succeed();
+    assert.deepEqual(h.calls.telemetry.slice(-1).map(function (e) { return [e.success, e.error]; }), [[true, undefined]]);
+    assert.equal(h.calls.telemetry.filter(function (e) { return e.error && e.error.code === 'fake_no_forecast_here'; }).length,
+        0, 'the success tracks itself alone');
+});
+
 test('success: a delivered sleep onset pauses the gate; a failed one does not', () => {
     const settings = Object.assign({ fetchIntervalMin: '60' }, sleepWindowCovering(new Date(T0), 3));
     const earlier = JSON.stringify({ time: new Date(T0 - 30 * MIN).toISOString() });
@@ -1929,14 +1947,24 @@ test('radar throttle: a store that cannot keep the record still asks, without th
 
 test('the watchdog outlasts the longest chain a healthy fetch makes, the reading picks asking every provider', () => {
     const providerReadings = require('../../src/pkjs/weather/domain/provider-readings.js');
+    const openMeteoModels = require('../../src/pkjs/weather/domain/open-meteo-models.js');
     const http = require('../../src/pkjs/weather/adapter/http.js');
-    // Every provider's requests with UV, and Weather Underground's re-scrape of a refused key
-    // (its page, then its two requests again).
-    const forecast = Object.keys(providerReadings.PROVIDERS)
+    // Each provider's requests with UV but `left`'s, and Weather Underground's re-scrape of a
+    // refused key (its page, then its two requests again).
+    const others = (left) => Object.keys(providerReadings.PROVIDERS).filter((id) => id !== left)
         .reduce((n, id) => n + providerReadings.requests(id, true), 0) + 3;
     // The fix, the radar (twice), the city, the two fills, air quality (twice), pollen, the ACK.
-    const around = 1 + 2 + 1 + 2 + 2 + 1 + 1;
-    assert.equal(forecast + around, 24);
-    assert.ok((forecast + around) * http.XHR_TIMEOUT_MS < WATCHDOG_MS);
+    const fills = 2;
+    const around = 1 + 2 + 1 + fills + 2 + 1 + 1;
+    const chains = {
+        'every provider, the default model': others(null) + around,
+        // Open-Meteo as the Provider with its most asking weather model (ECMWF's chance first),
+        // whose forecast falls back to the default's: one main request more. The fills never
+        // run then: Open-Meteo sends every drawn-only reading itself.
+        'Open-Meteo with a model that falls back': Math.max(...openMeteoModels.IDS.map((id) =>
+            providerReadings.requests('openmeteo', true, id))) + 1 + others('openmeteo') + around - fills
+    };
+    assert.deepEqual(Object.values(chains), [24, 24]);
+    Object.keys(chains).forEach((name) => assert.ok(chains[name] * http.XHR_TIMEOUT_MS < WATCHDOG_MS, name));
 });
 
