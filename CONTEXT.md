@@ -499,8 +499,8 @@ with DWD it is the DWD's pollen index for Germany, which names each type's band 
 like "1-2"; with every other Provider it is the CAMS forecast for Europe, which Open-Meteo
 serves. A CAMS type's band is its mean over the day put on the DWD's classes for that type
 (olive's on the Spanish Aerobiology Network's), so it comes in whole levels. The band shown is
-the worst type's. A refresh that brings no band takes the last good answer's, from the same
-source at the same place.
+the worst type's. A refresh that brings no band for today takes the last good answer's, from the
+same source at the same place, for each day it brings none.
 _Avoid_: pollen provider (the Provider is the weather's).
 
 **Source plan**:

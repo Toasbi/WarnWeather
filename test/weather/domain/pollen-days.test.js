@@ -182,17 +182,19 @@ test('settle shows and keeps an answer with today\'s band, and reads no stored r
     keep: { source: 'dwd', lat: 52.52, lon: 13.41, bands: { '2026-06-20': '2-3', '2026-06-21': '1' } } });
 });
 
-test('settle takes both days from the last answer at the same source and place, and keeps nothing', () => {
+test('settle takes the days an answer lacks from the last answer at the same source and place, and keeps nothing', () => {
   const now = new Date(2026, 5, 20, 9, 0);
   const stored = { source: 'cams', lat: 48.86, lon: 2.35, bands: { '2026-06-20': '1', '2026-06-21': '2' } };
   let reads = 0;
   const load = () => { reads += 1; return stored; };
   const failed = pollenDays.settle({}, load, 'cams', 48.86, 2.35, now);
   assert.deepEqual(failed, { today: '1', tomorrow: '2', keep: null, standsIn: true }, 'a refresh that brings nothing');
-  // An answer without today's band brings nothing either: its tomorrow does not mix in.
-  const empty = pollenDays.settle({ '2026-06-21': '3' }, load, 'cams', 48.86, 2.35, now);
-  assert.deepEqual(empty, { today: '1', tomorrow: '2', keep: null, standsIn: true }, 'an answer without today');
+  // An answer without today's band is not kept, but its tomorrow is newer than the last one's.
+  const late = pollenDays.settle({ '2026-06-21': '3' }, load, 'cams', 48.86, 2.35, now);
+  assert.deepEqual(late, { today: '1', tomorrow: '3', keep: null, standsIn: true }, 'an answer without today');
   assert.equal(reads, 2);
+  assert.deepEqual(pollenDays.settle({ '2026-06-21': '3' }, () => null, 'cams', 48.86, 2.35, now),
+    { today: null, tomorrow: '3', keep: null, standsIn: false }, 'an answer without today, and nothing stored');
   assert.deepEqual(pollenDays.settle({}, load, 'dwd', 48.86, 2.35, now),
     { today: null, tomorrow: null, keep: null, standsIn: false }, 'another source');
   // The next day, yesterday's answer still holds that day's band.

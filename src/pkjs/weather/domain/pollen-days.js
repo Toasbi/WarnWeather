@@ -267,8 +267,8 @@
     /**
      * A fetch's bands for today and tomorrow, and the record it leaves. An answer that holds
      * today's band is good: it is shown and kept. Otherwise the last good answer's bands stand
-     * in, when they came from the same source at the same place. Both days come from the same
-     * bands.
+     * in, when they came from the same source at the same place: today's, and tomorrow's when
+     * the answer holds none.
      * @param {Object<string, string>} bands The answer's bands, date key → band; {} when none
      *   came.
      * @param {function(): *} load Reads the stored record (pollen-store.js read): called only
@@ -284,14 +284,17 @@
     function settle(bands, load, source, lat, lon, now) {
         var days = [localDateKey(now), localDateKey(nextLocalDay(now))];
         var today = bandOn(bands, days[0]);
+        var tomorrow = bandOn(bands, days[1]);
         var keep = null;
+        var last;
         if (today !== null) {
             keep = recordOf(source, lat, lon, bands, days);
         } else {
-            bands = standIn(load(), source, lat, lon);
-            today = bandOn(bands, days[0]);
+            last = standIn(load(), source, lat, lon);
+            today = bandOn(last, days[0]);
+            if (tomorrow === null) { tomorrow = bandOn(last, days[1]); }
         }
-        return { today: today, tomorrow: bandOn(bands, days[1]), keep: keep, standsIn: keep === null && today !== null };
+        return { today: today, tomorrow: tomorrow, keep: keep, standsIn: keep === null && today !== null };
     }
 
     var api = {
