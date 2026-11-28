@@ -1,6 +1,7 @@
 // test/weather/domain/pollen-days.test.js — the pollen bands' rules
 // (src/pkjs/weather/domain/pollen-days.js): which source a Provider reads, each source's bands
-// by local day, the CAMS types' levels, the forecast's area and the last answer's stand-in.
+// by local day, the CAMS types' levels, where each source is asked and the last answer's
+// stand-in.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -36,6 +37,16 @@ test('the DWD Provider reads the DWD\'s index, every other one the CAMS forecast
   assert.equal(pollenDays.sourceOf('dwd'), 'dwd');
   ['openmeteo', 'metno', 'owm', 'tomorrowio', 'wunderground', 'yandex', '', null, undefined].forEach((id) => {
     assert.equal(pollenDays.sourceOf(id), 'cams', String(id));
+  });
+});
+
+test('the sources sourceOf names are the ones SOURCES holds, and nothing else is one', () => {
+  assert.deepEqual(Object.keys(pollenDays.SOURCES).sort(), ['cams', 'dwd']);
+  assert.equal(pollenDays.SOURCES.dwd.bands, pollenDays.dwdBands);
+  assert.equal(pollenDays.SOURCES.cams.bands, pollenDays.camsBands);
+  ['dwd', 'cams'].forEach((id) => assert.equal(pollenDays.isSource(id), true, id));
+  ['cam', 'DWD', 'toString', '', null, undefined, 1].forEach((id) => {
+    assert.equal(pollenDays.isSource(id), false, String(id));
   });
 });
 
@@ -135,12 +146,18 @@ test('camsBands reads the answers recorded at Berlin and New York on 2026-11-28'
   });
 });
 
-test('the CAMS forecast covers Europe but the Canary Islands, the Azores and Svalbard', () => {
+test('the CAMS forecast is asked across Europe but the Canary Islands, the Azores and Svalbard', () => {
   [[52.52, 13.41], [40.42, -3.7], [64.15, -21.94], [41.01, 28.98], ['48.86', '2.35']].forEach(([lat, lon]) => {
-    assert.equal(pollenDays.inCamsArea(lat, lon), true, lat + ',' + lon);
+    assert.equal(pollenDays.covers('cams', lat, lon), true, lat + ',' + lon);
   });
   [[28.12, -15.43], [37.74, -25.67], [78.22, 15.65], [40.71, -74.01], [NaN, 2], ['', '']].forEach(([lat, lon]) => {
-    assert.equal(pollenDays.inCamsArea(lat, lon), false, lat + ',' + lon);
+    assert.equal(pollenDays.covers('cams', lat, lon), false, lat + ',' + lon);
+  });
+});
+
+test('the DWD\'s index is asked anywhere: its answer says where it has no band', () => {
+  [[52.52, 13.41], [40.71, -74.01], [28.12, -15.43]].forEach(([lat, lon]) => {
+    assert.equal(pollenDays.covers('dwd', lat, lon), true, lat + ',' + lon);
   });
 });
 
@@ -155,6 +172,34 @@ test('the stand-in is the last answer\'s days, from the same source at the same 
   [null, '', 'x', {}, { source: 'cams', lat: 48.86, lon: 2.35, bands: null }].forEach((stored) => {
     assert.deepEqual(pollenDays.standIn(stored, 'cams', 48.86, 2.35), {}, JSON.stringify(stored));
   });
+});
+
+test('settle shows and keeps an answer with today\'s band, and reads no stored record', () => {
+  const now = new Date(2026, 5, 20, 9, 0);
+  const answer = { '2026-06-19': '3', '2026-06-20': '2-3', '2026-06-21': '1' };
+  const day = pollenDays.settle(answer, () => { throw new Error('read the store'); }, 'dwd', 52.5208, 13.4094, now);
+  assert.deepEqual(day, { today: '2-3', tomorrow: '1', standsIn: false,
+    keep: { source: 'dwd', lat: 52.52, lon: 13.41, bands: { '2026-06-20': '2-3', '2026-06-21': '1' } } });
+});
+
+test('settle takes both days from the last answer at the same source and place, and keeps nothing', () => {
+  const now = new Date(2026, 5, 20, 9, 0);
+  const stored = { source: 'cams', lat: 48.86, lon: 2.35, bands: { '2026-06-20': '1', '2026-06-21': '2' } };
+  let reads = 0;
+  const load = () => { reads += 1; return stored; };
+  const failed = pollenDays.settle({}, load, 'cams', 48.86, 2.35, now);
+  assert.deepEqual(failed, { today: '1', tomorrow: '2', keep: null, standsIn: true }, 'a refresh that brings nothing');
+  // An answer without today's band brings nothing either: its tomorrow does not mix in.
+  const empty = pollenDays.settle({ '2026-06-21': '3' }, load, 'cams', 48.86, 2.35, now);
+  assert.deepEqual(empty, { today: '1', tomorrow: '2', keep: null, standsIn: true }, 'an answer without today');
+  assert.equal(reads, 2);
+  assert.deepEqual(pollenDays.settle({}, load, 'dwd', 48.86, 2.35, now),
+    { today: null, tomorrow: null, keep: null, standsIn: false }, 'another source');
+  // The next day, yesterday's answer still holds that day's band.
+  assert.deepEqual(pollenDays.settle({}, load, 'cams', 48.86, 2.35, new Date(2026, 5, 21, 7, 0)),
+    { today: '2', tomorrow: null, keep: null, standsIn: true }, 'the day after');
+  assert.deepEqual(pollenDays.settle({}, () => null, 'cams', 48.86, 2.35, now),
+    { today: null, tomorrow: null, keep: null, standsIn: false }, 'nothing stored');
 });
 
 test('bandOn reads a day\'s band and nothing else', () => {

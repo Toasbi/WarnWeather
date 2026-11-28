@@ -2,9 +2,9 @@
 //
 // Today's and tomorrow's pollen band for the Pollen slot and the pollen alert, from the pollen
 // source the Provider reads (weather/domain/pollen-days.js sourceOf): the DWD's index, or the
-// CAMS forecast through Open-Meteo's air quality API. The bands' rules are in pollen-days.js;
-// this file asks the source, and keeps the last good answer for a refresh that brings none
-// (pollen-store.js).
+// CAMS forecast through Open-Meteo's air quality API. The sources and the bands' rules are in
+// pollen-days.js; this file asks the source, and keeps the last good answer for a refresh that
+// brings none (pollen-store.js).
 
 // Leaf http helper (no provider cycle): call through the module object so
 // tests can stub http.request at runtime.
@@ -14,8 +14,6 @@ var pollenStore = require('./pollen-store.js');
 var pollenDays = require('../domain/pollen-days.js');
 
 var WFS_URL = 'https://maps.dwd.de/geoserver/dwd/Pollenflug/wfs';
-// Each source's name in the log.
-var LOG_NAMES = { dwd: 'DWD', cams: 'CAMS' };
 
 /**
  * Build the DWD WFS point lookup URL. EPSG:4326 uses latitude-first axis order
@@ -54,12 +52,15 @@ function buildCamsUrl(lat, lon) {
         + '&forecast_days=2';
 }
 
+// Each pollen source's request, by its id (pollen-days.js SOURCES).
+var URLS = { dwd: buildUrl, cams: buildCamsUrl };
+
 /**
  * Fetch today's and tomorrow's pollen band into a weather provider, from the source the
- * Provider reads (options.pollenSource). The CAMS forecast is not asked outside its area. A
- * refresh that brings no band for today, failed or empty, takes the last good answer's bands
- * for both days when it came from the same source at the same place. A band nothing brings
- * leaves its property as it is. Failures are non-fatal; done is always called once.
+ * Provider reads (options.pollenSource). A source is not asked outside its area. A refresh that
+ * brings no band for today, failed or empty, takes the last good answer's bands for both days
+ * when it came from the same source at the same place (pollen-days.js settle). A band nothing
+ * brings leaves its property as it is. Failures are non-fatal; done is always called once.
  * @param {Object} provider Active provider (reads .options.fetchPollen and .pollenSource,
  *     writes .pollenToday and .pollenTomorrow).
  * @param {number} lat Latitude in decimal degrees.
@@ -69,62 +70,54 @@ function buildCamsUrl(lat, lon) {
  */
 function fetchPollenInto(provider, lat, lon, done) {
     var options = provider.options;
-    // A provider without options skips the request (fail-safe, like day-peaks' wanted/recall).
-    if (!(options && options.fetchPollen)) { done(); return; }
+    // A provider without options, or with a source pollen-days.js does not know, skips the
+    // request (fail-safe, like day-peaks' wanted/recall).
+    if (!(options && options.fetchPollen && pollenDays.isSource(options.pollenSource))) { done(); return; }
     var source = options.pollenSource;
-    var name = LOG_NAMES[source];
+    var asked = pollenDays.SOURCES[source];
     var now = new Date();
-    var days = [pollenDays.localDateKey(now), pollenDays.localDateKey(pollenDays.nextLocalDay(now))];
     var completed = false;
 
     /**
-     * Take an answer's bands, or the stand-in's, and hand on.
-     * @param {?Object<string, string>} bands The answer's bands; null when none came.
+     * Settle the answer's bands, or the stand-in's, and hand on.
+     * @param {Object<string, string>} bands The answer's bands; {} when none came.
      * @returns {void}
      */
     function complete(bands) {
         if (completed) { return; }
         completed = true;
-        if (bands && pollenDays.bandOn(bands, days[0]) !== null) {
-            pollenStore.write(pollenDays.recordOf(source, lat, lon, bands, days));
-        } else {
-            bands = pollenDays.standIn(pollenStore.read(), source, lat, lon);
-            if (pollenDays.bandOn(bands, days[0]) !== null) {
-                console.log('Pollen: showing the last ' + name + ' answer');
-            }
-        }
-        var today = pollenDays.bandOn(bands, days[0]);
-        var tomorrow = pollenDays.bandOn(bands, days[1]);
-        if (today !== null) { provider.pollenToday = today; }
-        if (tomorrow !== null) { provider.pollenTomorrow = tomorrow; }
+        var day = pollenDays.settle(bands, pollenStore.read, source, lat, lon, now);
+        if (day.keep) { pollenStore.write(day.keep); }
+        if (day.standsIn) { console.log('Pollen: showing the last ' + asked.name + ' answer'); }
+        if (day.today !== null) { provider.pollenToday = day.today; }
+        if (day.tomorrow !== null) { provider.pollenTomorrow = day.tomorrow; }
         done();
     }
 
-    if (source === 'cams' && !pollenDays.inCamsArea(lat, lon)) {
-        complete(null);
+    if (!pollenDays.covers(source, lat, lon)) {
+        complete({});
         return;
     }
     try {
-        http.request(source === 'dwd' ? buildUrl(lat, lon) : buildCamsUrl(lat, lon), 'GET', function(response) {
+        http.request(URLS[source](lat, lon), 'GET', function(response) {
             if (completed) { return; }
-            var bands = null;
+            var bands = {};
             try {
-                var json = JSON.parse(response);
-                bands = source === 'dwd' ? pollenDays.dwdBands(json) : pollenDays.camsBands(json);
+                bands = asked.bands(JSON.parse(response));
             } catch (ex) {
-                console.log('[!] ' + name + ' pollen response parse failed');
+                console.log('[!] ' + asked.name + ' pollen response parse failed');
             }
             complete(bands);
         }, function(error) {
             if (completed) { return; }
-            console.log('[!] ' + name + ' pollen request failed: ' + JSON.stringify(error));
-            complete(null);
+            console.log('[!] ' + asked.name + ' pollen request failed: ' + JSON.stringify(error));
+            complete({});
         });
     } catch (ex) {
         if (!completed) {
-            console.log('[!] ' + name + ' pollen request failed before completion');
+            console.log('[!] ' + asked.name + ' pollen request failed before completion');
         }
-        complete(null);
+        complete({});
     }
 }
 

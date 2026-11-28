@@ -1,11 +1,12 @@
 // src/pkjs/weather/domain/pollen-days.js — ES5, watch runtime and settings page.
 //
 // The pollen band of each local day, as the Pollen slot prints it and the pollen alert judges
-// it: the worst band among the pollen types. The pollen source follows the Provider (sourceOf).
-// The DWD's index names each type's band itself, in half steps like '1-2'. The CAMS forecast,
-// which Open-Meteo serves, gives each type's grains per cubic meter by the hour; a day's mean is
-// put on the DWD's classes for that type, so its bands come in whole steps. The last answer's
-// bands stand in for a refresh that brings none, at the same place and from the same source.
+// it: the worst band among the pollen types. The pollen source follows the Provider (sourceOf),
+// and each source has one row in SOURCES. The DWD's index names each type's band itself, in half
+// steps like '1-2'. The CAMS forecast, which Open-Meteo serves, gives each type's grains per cubic
+// meter by the hour; a day's mean is put on the DWD's classes for that type, so its bands come in
+// whole steps. The last answer's bands stand in for a refresh that brings none, at the same place
+// and from the same source (settle).
 //
 // Dual-context: a CommonJS module on the phone and in the tests, and a plain <script> on the
 // settings page (window.PollenDays), whose pollen texts describe the source sourceOf names
@@ -37,6 +38,14 @@
     // European Russia; outside it the forecast answers nothing, so a fetch does not ask.
     var CAMS_AREA = { south: 30, north: 72, west: -25, east: 45 };
 
+    // The pollen sources, by the id sourceOf names: the name the log gives each, the area it is
+    // asked in (null: anywhere, as the DWD's index, whose answer holds no band outside Germany)
+    // and the reader of its answer's bands. pollen.js holds each one's request.
+    var SOURCES = {
+        dwd: { name: 'DWD', area: null, bands: dwdBands },
+        cams: { name: 'CAMS', area: CAMS_AREA, bands: camsBands }
+    };
+
     // Two fetches this close (degrees, on each axis) count as the same place for the stand-in:
     // the radius the AQI's stand-in uses (air-quality.js).
     var SAME_PLACE_DEGREES = 0.05;
@@ -49,6 +58,15 @@
      */
     function sourceOf(provider) {
         return provider === 'dwd' ? 'dwd' : 'cams';
+    }
+
+    /**
+     * Whether an id names a pollen source (SOURCES).
+     * @param {*} id A pollen source id.
+     * @returns {boolean}
+     */
+    function isSource(id) {
+        return typeof id === 'string' && Object.prototype.hasOwnProperty.call(SOURCES, id);
     }
 
     /**
@@ -83,10 +101,9 @@
     function dwdBands(json) {
         var features = json && json.features;
         var worst = {};
-        var bands = {};
         var i;
         var day;
-        if (!Array.isArray(features)) { return bands; }
+        if (!Array.isArray(features)) { return {}; }
         for (i = 0; i < features.length; i += 1) {
             var properties = features[i] && features[i].properties;
             var forecastDate = properties && properties.FORECAST_DATE;
@@ -102,6 +119,17 @@
             day = forecastDate.slice(0, 10);
             if (worst[day] === undefined || pollenInt > worst[day]) { worst[day] = pollenInt; }
         }
+        return bandsOf(worst);
+    }
+
+    /**
+     * The band of each day's worst ordinal on the DWD's scale.
+     * @param {Object<string, number>} worst Date key → BANDS index.
+     * @returns {Object<string, string>} Date key → band.
+     */
+    function bandsOf(worst) {
+        var bands = {};
+        var day;
         for (day in worst) {
             if (Object.prototype.hasOwnProperty.call(worst, day)) { bands[day] = BANDS[worst[day]]; }
         }
@@ -131,48 +159,50 @@
         var hourly = json && json.hourly;
         var times = hourly && hourly.time;
         var worst = {};
-        var bands = {};
-        var day;
-        if (!Array.isArray(times)) { return bands; }
+        var days;
+        if (!Array.isArray(times)) { return {}; }
+        // Each hour's local day, worked out once for every type.
+        days = times.map(function (time) {
+            return typeof time === 'number' ? localDateKey(new Date(time * 1000)) : null;
+        });
         CAMS_TYPES.forEach(function (type) {
             var values = hourly[type.field];
             var sums = {};
             var counts = {};
             var i;
-            var key;
+            var day;
+            var ordinal;
             if (!Array.isArray(values)) { return; }
-            for (i = 0; i < times.length && i < values.length; i += 1) {
-                if (typeof times[i] !== 'number' || typeof values[i] !== 'number' || !isFinite(values[i])) {
-                    continue;
-                }
-                key = localDateKey(new Date(times[i] * 1000));
-                sums[key] = (sums[key] || 0) + values[i];
-                counts[key] = (counts[key] || 0) + 1;
+            for (i = 0; i < days.length && i < values.length; i += 1) {
+                day = days[i];
+                if (day === null || typeof values[i] !== 'number' || !isFinite(values[i])) { continue; }
+                sums[day] = (sums[day] || 0) + values[i];
+                counts[day] = (counts[day] || 0) + 1;
             }
-            for (key in counts) {
-                if (Object.prototype.hasOwnProperty.call(counts, key) && counts[key] >= MIN_HOURS) {
-                    var level = levelOf(type, sums[key] / counts[key]);
-                    if (worst[key] === undefined || level > worst[key]) { worst[key] = level; }
+            for (day in counts) {
+                if (Object.prototype.hasOwnProperty.call(counts, day) && counts[day] >= MIN_HOURS) {
+                    // A whole level is every second band of the DWD's scale.
+                    ordinal = levelOf(type, sums[day] / counts[day]) * 2;
+                    if (worst[day] === undefined || ordinal > worst[day]) { worst[day] = ordinal; }
                 }
             }
         });
-        for (day in worst) {
-            // A whole level is every second band of the DWD's scale.
-            if (Object.prototype.hasOwnProperty.call(worst, day)) { bands[day] = BANDS[worst[day] * 2]; }
-        }
-        return bands;
+        return bandsOf(worst);
     }
 
     /**
-     * Whether the CAMS forecast covers a place.
+     * Whether a pollen source is asked for a place: anywhere for one without an area, inside its
+     * area otherwise.
+     * @param {string} source A pollen source id (isSource).
      * @param {number|string} lat Latitude in degrees.
      * @param {number|string} lon Longitude in degrees.
      * @returns {boolean}
      */
-    function inCamsArea(lat, lon) {
+    function covers(source, lat, lon) {
+        var area = SOURCES[source].area;
         var la = Number(lat);
         var lo = Number(lon);
-        return la >= CAMS_AREA.south && la <= CAMS_AREA.north && lo >= CAMS_AREA.west && lo <= CAMS_AREA.east;
+        return !area || (la >= area.south && la <= area.north && lo >= area.west && lo <= area.east);
     }
 
     /**
@@ -234,21 +264,53 @@
         return BANDS.indexOf(band) === -1 ? null : band;
     }
 
+    /**
+     * A fetch's bands for today and tomorrow, and the record it leaves. An answer that holds
+     * today's band is good: it is shown and kept. Otherwise the last good answer's bands stand
+     * in, when they came from the same source at the same place. Both days come from the same
+     * bands.
+     * @param {Object<string, string>} bands The answer's bands, date key → band; {} when none
+     *   came.
+     * @param {function(): *} load Reads the stored record (pollen-store.js read): called only
+     *   when the answer holds no band for today.
+     * @param {string} source 'dwd' | 'cams'.
+     * @param {number|string} lat Latitude in degrees.
+     * @param {number|string} lon Longitude in degrees.
+     * @param {Date} now The fetch's time.
+     * @returns {{today: ?string, tomorrow: ?string, keep: ?Object, standsIn: boolean}} keep is
+     *   the record to store (recordOf), null unless the answer is good; standsIn says the last
+     *   answer's band shows for today.
+     */
+    function settle(bands, load, source, lat, lon, now) {
+        var days = [localDateKey(now), localDateKey(nextLocalDay(now))];
+        var today = bandOn(bands, days[0]);
+        var keep = null;
+        if (today !== null) {
+            keep = recordOf(source, lat, lon, bands, days);
+        } else {
+            bands = standIn(load(), source, lat, lon);
+            today = bandOn(bands, days[0]);
+        }
+        return { today: today, tomorrow: bandOn(bands, days[1]), keep: keep, standsIn: keep === null && today !== null };
+    }
+
     var api = {
         BANDS: BANDS,
         CAMS_TYPES: CAMS_TYPES,
-        MIN_HOURS: MIN_HOURS,
+        SOURCES: SOURCES,
         sourceOf: sourceOf,
+        isSource: isSource,
+        covers: covers,
         localDateKey: localDateKey,
         nextLocalDay: nextLocalDay,
         dwdBands: dwdBands,
         levelOf: levelOf,
         camsBands: camsBands,
-        inCamsArea: inCamsArea,
         roundPlace: roundPlace,
         recordOf: recordOf,
         standIn: standIn,
-        bandOn: bandOn
+        bandOn: bandOn,
+        settle: settle
     };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.PollenDays = api; }
