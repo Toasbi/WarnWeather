@@ -39,7 +39,7 @@ const UV = [0, 0, 0, 0, 0.1, 0.4, 1.0, 2.0, 3.3, 4.6, 5.7, 6.4, 6.6, 6.2, 5.3, 4
 const PRESSURE_STEP = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 1.8, 1.5, 1.2, 0.9];
 const AQI_STEP = [0, 2, 4, 6, 8, 10, 12, 14, 16, 14, 12, 10];
 // The CAMS forecast's grass pollen (grains per cubic meter) by local hour: a day's mean of 13,
-// medium, and 20 more every day after, so tomorrow's is high.
+// medium, today and on the days before, and 20 more every day after, so tomorrow's is high.
 const GRASS = [2, 2, 2, 2, 3, 5, 9, 14, 20, 26, 30, 32, 32, 30, 26, 20, 14, 9, 6, 4, 3, 2, 2, 2];
 
 /**
@@ -158,16 +158,23 @@ const GAP_FIELDS = {
 };
 
 /**
- * Open-Meteo's GMT hours for a request's forecast_days, from 00:00 GMT today.
+ * Open-Meteo's GMT hours for a request's past_days and forecast_days, from 00:00 GMT
+ * past_days before today.
  * @param {string} url The request.
  * @returns {number[]} Epoch seconds.
  */
 function openMeteoTimes(url) {
   const days = Number(query(url).get('forecast_days')) || 7;
   const out = [];
-  for (let k = 0; k < days * 24; k += 1) { out.push(DAY0 + k * HOUR); }
+  for (let k = -pastDays(url) * 24; k < days * 24; k += 1) { out.push(DAY0 + k * HOUR); }
   return out;
 }
+
+/**
+ * @param {string} url An Open-Meteo request.
+ * @returns {number} The days it asks for before today (past_days).
+ */
+function pastDays(url) { return Number(query(url).get('past_days')) || 0; }
 
 // Open-Meteo stamps a preceding-hour value (rain, chance, gusts, GFS's UV) at the END of the
 // hour it covers: the bucket at T describes the hour starting at T - 1 h.
@@ -295,14 +302,15 @@ const SERVICES = [
   },
   {
     // The CAMS pollen forecast from Open-Meteo's air quality API: every type by the hour from
-    // the place's midnight (timezone=auto), grass alone above 0.
+    // the place's midnight past_days before today (timezone=auto), grass alone above 0.
     match: (url) => url.indexOf('https://air-quality-api.open-meteo.com/v1/air-quality?') === 0
       && /_pollen/.test(query(url).get('hourly')),
     answer: (url) => {
       const time = openMeteoTimes(url).map((t) => t - BERLIN_OFFSET);
       const hourly = { time: time };
       query(url).get('hourly').split(',').forEach((field) => {
-        hourly[field] = time.map((t, k) => (field === 'grass_pollen' ? cycled(GRASS, k) + Math.floor(k / 24) * 20 : 0));
+        hourly[field] = time.map((t, k) => (field !== 'grass_pollen' ? 0
+          : cycled(GRASS, k) + Math.max(0, Math.floor(k / 24) - pastDays(url)) * 20));
       });
       return { hourly: hourly };
     }

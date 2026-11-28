@@ -133,11 +133,57 @@ test('buildUrl targets the DWD pollen WFS with a latitude-first point', () => {
   assert.match(decoded, /CQL_FILTER=INTERSECTS\(THE_GEOM,POINT\(52\.52 13\.405\)\)/i);
 });
 
-test('buildCamsUrl asks Open-Meteo for every CAMS type by the hour, over the place\'s today and tomorrow', () => {
+test('buildCamsUrl asks Open-Meteo for every CAMS type by the hour, from the place\'s yesterday to the day after its tomorrow', () => {
   const url = pollen.buildCamsUrl('48.85661', 2.35222);
   assert.equal(url, 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=48.86&longitude=2.35'
     + '&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen'
-    + '&timeformat=unixtime&timezone=auto&forecast_days=2');
+    + '&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3');
+});
+
+/**
+ * Answers a CAMS request as Open-Meteo does for a place whose current day began at `placeDay`
+ * (timezone=auto): by the hour from that day's start past_days days back, for past_days +
+ * forecast_days days. Grass is at 4 on the phone's today and 40 on its tomorrow, every other
+ * hour and type at 0.
+ * @param {number} placeDay Epoch seconds of the place's midnight that began its current day.
+ * @returns {function(string, Function)} The request's answer: (url, onSuccess).
+ */
+function camsAround(placeDay) {
+  return (url, onSuccess) => {
+    const query = new URL(url).searchParams;
+    const past = Number(query.get('past_days'));
+    const time = Array.from({ length: (past + Number(query.get('forecast_days'))) * 24 },
+      (_, i) => placeDay - past * 86400 + i * 3600);
+    const now = new Date();
+    const grass = {};
+    grass[pollenDays.localDateKey(now)] = 4;
+    grass[pollenDays.localDateKey(pollenDays.nextLocalDay(now))] = 40;
+    const hourly = { time: time };
+    pollenDays.CAMS_TYPES.forEach((type) => {
+      hourly[type.field] = time.map((t) => (type.field === 'grass_pollen'
+        ? grass[pollenDays.localDateKey(new Date(t * 1000))] || 0 : 0));
+    });
+    onSuccess(JSON.stringify({ hourly: hourly }));
+  };
+}
+
+test('with the CAMS source the phone\'s today and tomorrow are whole wherever the place\'s day begins', (t) => {
+  // The phone's hour, and where the place's current day began, in hours from the phone's
+  // midnight: a phone on New York time with Berlin as the place, at 20:00, and a phone on
+  // Berlin time with New York, at 03:00.
+  const CASES = [
+    { hour: 20, placeDay: 18, what: 'the place\'s day began this evening' },
+    { hour: 3, placeDay: 6 - 24, what: 'the place\'s day began yesterday morning' }
+  ];
+  t.mock.timers.enable({ apis: ['Date'] });
+  CASES.forEach((c) => {
+    localStorage.clear();
+    t.mock.timers.setTime(new Date(2026, 5, 15, c.hour, 0, 0).getTime());
+    const midnight = new Date(2026, 5, 15).getTime() / 1000;
+    const run = fetchWith(CAMS, 48.86, 2.35, camsAround(midnight + c.placeDay * 3600));
+    assert.equal(run.provider.pollenToday, '1', c.what + ': today\'s band');
+    assert.equal(run.provider.pollenTomorrow, '3', c.what + ': tomorrow\'s band');
+  });
 });
 
 test('fetchPollenInto asks nothing with pollen off, or for a source pollen-days.js does not know', () => {

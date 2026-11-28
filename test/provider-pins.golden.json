@@ -195,7 +195,7 @@
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=52.52&lon=13.405",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -307,7 +307,7 @@
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=windgusts_10m,apparent_temperature,dew_point_2m,wind_direction_10m&current=apparent_temperature,dew_point_2m,wind_speed_10m&temperature_unit=fahrenheit&windspeed_unit=kmh&timeformat=unixtime&timezone=GMT&forecast_days=4",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=uv_index&timeformat=unixtime&timezone=GMT&models=ncep_gfs_global&forecast_days=4",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -412,7 +412,7 @@
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.openweathermap.org/data/3.0/onecall?appid=owm-test-key&lat=52.52&lon=13.405&units=imperial&exclude=alerts,minutely",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -517,7 +517,7 @@
       "GET https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location=13.405,52.52",
       "GET https://api.tomorrow.io/v4/timelines?location=52.52,13.405&fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity,weatherCode&timesteps=1h&units=metric&startTime=2026-06-20T08%3A00%3A00.000Z&endTime=2026-06-23T05%3A00%3A00.000Z&apikey=tio-test-key",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -630,7 +630,7 @@
       "GET https://api.weather.com/v3/wx/observations/current?language=en-US&units=e&format=json&apiKey=e1f10a1e78da46f5b10a1e78da96f525&geocode=52.52,13.405",
       "GET https://api.weather.com/v1/geocode/52.52/13.405/forecast/hourly/48hour.json?apiKey=e1f10a1e78da46f5b10a1e78da96f525&language=en-US",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,
@@ -736,7 +736,7 @@
       "POST https://api.weather.yandex.ru/graphql/query {\"query\":\"{ weatherByPoint(request: {lat: 52.52, lon: 13.405}) { now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) condition } forecast { days(limit: 4) { hours { timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex } } } } }\"}",
       "GET https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.405&hourly=dew_point_2m,wind_direction_10m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,pressure_msl&temperature_unit=fahrenheit&timeformat=unixtime&timezone=GMT&forecast_days=4",
       "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.405&hourly=us_aqi&timeformat=unixtime&timezone=GMT&forecast_days=4",
-      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&forecast_days=2"
+      "GET https://air-quality-api.open-meteo.com/v1/air-quality?latitude=52.52&longitude=13.41&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timeformat=unixtime&timezone=auto&past_days=1&forecast_days=3"
     ],
     "payload": {
       "TEMP_MIN": 52,

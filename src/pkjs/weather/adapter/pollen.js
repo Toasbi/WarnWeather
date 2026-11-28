@@ -37,7 +37,10 @@ function buildUrl(lat, lon) {
 
 /**
  * Build the Open-Meteo air quality request for the CAMS forecast's pollen: every type it
- * holds, by the hour, over the place's today and tomorrow.
+ * holds, by the hour, from the place's yesterday to the day after its tomorrow. The hours
+ * follow the place's days (timezone=auto) and the bands the phone's (pollen-days.js
+ * camsBands), so the day on each side keeps the phone's today and tomorrow whole wherever
+ * the place's day begins.
  * @param {number|string} lat Latitude in decimal degrees.
  * @param {number|string} lon Longitude in decimal degrees.
  * @returns {string} Fully formed request URL.
@@ -49,7 +52,8 @@ function buildCamsUrl(lat, lon) {
         + '&hourly=' + pollenDays.CAMS_TYPES.map(function (type) { return type.field; }).join(',')
         + '&timeformat=unixtime'
         + '&timezone=auto'
-        + '&forecast_days=2';
+        + '&past_days=1'
+        + '&forecast_days=3';
 }
 
 // Each pollen source's request, by its id (pollen-days.js SOURCES).
