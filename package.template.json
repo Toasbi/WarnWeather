@@ -2438,7 +2438,7 @@
             "air-quality-api.open-meteo.com"
           ]
         },
-        "reason": "Open-Meteo air quality",
+        "reason": "Open-Meteo air quality and pollen",
         "required": true
       },
       {

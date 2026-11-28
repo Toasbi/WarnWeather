@@ -35,6 +35,7 @@ Features marked * depend on your watch model.
 - Open-Meteo with ECMWF's global model or another you pick, such as your country's own. For a model without a precipitation amount, you pick where the amount comes from
 - One provider for everything, or a provider of its own for any reading, with the calls a day shown in the settings
 - Readings a provider lacks, like DWD's UV index, come from Open-Meteo
+- Pollen from DWD's pollen index with DWD, and from the CAMS forecast across Europe with every other provider
 
 ### Alerts*
 

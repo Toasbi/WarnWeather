@@ -142,7 +142,7 @@ test('every declared domain is one the code requests (or, Buy Me a Coffee, links
 });
 
 // Required (the owner's, 2026-11-13 and 2026-11-14): every weather service the app can fetch
-// from (the forecast and radar services, keyed or not, air quality, DWD pollen), the town's name
+// from (the forecast and radar services, keyed or not, air quality, pollen), the town's name
 // and the settings' place search, the public holidays (Nager.Date), Buy Me a Coffee and the app's
 // own backend (the build adds its entry, required). Installing then waits for an answer on all of
 // them, so switching services or opening settings never meets a first request that fails while

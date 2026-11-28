@@ -271,3 +271,15 @@ test('the weather model tip names the page\'s own section and rows, on every wat
   assert.ok(tip.html.indexOf('under ' + other.text + '.') !== -1, 'the Other sources list');
   assert.equal(tip.when, undefined, 'every watch: the phone fetches');
 });
+
+test('the pollen tip names the page\'s own words for the slot, on every watch', () => {
+  const tip = featureTips.TIPS.find((t) => t.id === 'pollenEveryProvider');
+  const label = catalog.byCode('pollen').label;
+  assert.ok(tip.html.indexOf('The ' + label + ' slot now works with every weather provider') === 0, tip.html);
+  assert.ok(tip.html.indexOf('Set a slot to ' + label + ' ') !== -1, tip.html);
+  assert.deepEqual(tip.open, { tab: 'watch' }, 'Show me opens the Status bars tab');
+  assert.equal(tip.when, undefined, 'every watch: the phone fetches');
+  assert.equal(tip.since, '3.6.0');
+  assert.deepEqual(featureTips.TIPS.filter((x) => x.since === '3.6.0').map((x) => x.id),
+    ['openMeteoModel', 'pollenEveryProvider'], 'its release\'s, in the card\'s order');
+});
