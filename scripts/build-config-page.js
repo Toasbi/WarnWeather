@@ -235,9 +235,14 @@ var APP_FILES = [
   // while its body runs, so it follows them all, and screens-page.js binds window.ScreenLegend
   // while its own runs, so it precedes that.
   path.join(ROOT, 'src/pkjs/page/layout/screen-legend.js'),
+  // The pollen source a Provider reads (window.PollenDays, sourceOf), which the pollen
+  // dialogs describe. It reads nothing at load; when-resolvers.js binds it while its body
+  // runs, so it precedes that file — test/page/settings/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/weather/domain/pollen-days.js'),
   // The schema's when resolvers (PConf.whenResolvers: lineRow, onDemandPlaced,
-  // defaultViewLacksOnDemand). They bind window.LineStyle, window.DrawFrom,
-  // window.OnDemand and VIEW_CYCLE while their own body runs, so they follow all four;
+  // defaultViewLacksOnDemand, tempAxisLineDrawn, pollenSource). They bind window.LineStyle,
+  // window.DrawFrom, window.OnDemand, window.ForecastAxis, window.PollenDays and VIEW_CYCLE
+  // while their own body runs, so they follow all six;
   // they register while it runs and are asked at render time. Dropping the file throws
   // nothing: an unregistered when-leaf reads false, so every Draw from, Visible values and
   // graph-scale row would silently never show on a real phone (and the Alerts notes and

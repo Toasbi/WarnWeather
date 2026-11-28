@@ -299,7 +299,7 @@ const NOTE = 'On each bar, the alert can show on the left or the right, not both
   + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
 // A metric alert's note adds the merge into the slot that shows its value.
 const MERGE = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index',
-  pollen: 'the pollen index', wind: 'the wind speed' };
+  pollen: 'the pollen level', wind: 'the wind speed' };
 // Where the defaults put each item on the Watch bar ('none': Pollen).
 const TOP_SIDE = { battery: 'right', bt: 'left', qt: 'left', snooze: 'left', rain: 'left', gust: 'right',
   uv: 'right', aqi: 'right', pollen: 'none', wind: 'right' };
@@ -482,12 +482,18 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
     + iconRun('right', ['battery', 'gust', 'uv', 'aqi', 'wind']));
 });
 
-test('Pollen off DWD: no Alerts-tab row (so no dialog to open there), and the Alerts row leaves it out', () => {
+test('Pollen with every Provider: its Alerts-tab row, a dialog naming the pollen source in use, the Alerts row\'s icon', () => {
+  [['openmeteo', 'CAMS forecast (Open-Meteo)', 'DWD'], ['dwd', 'pollen index</a>', 'CAMS']].forEach(([provider, names, never]) => {
+    const page = alertsTab({ provider, statusTopOnDemandRightItems: 'pollen,wind' });
+    assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="alertPollen"') !== -1, provider + ': the Pollen row');
+    page.openEditSheet('alertPollen');
+    assert.ok(page.modal.innerHTML.indexOf(names) !== -1, provider + ': names its source');
+    assert.equal(page.modal.innerHTML.indexOf(never), -1, provider + ': names no other');
+  });
   const page = alertsTab({ provider: 'openmeteo', statusTopOnDemandRightItems: 'pollen,wind' });
-  assert.equal(page.scroll.innerHTML.indexOf('data-edit-sheet="alertPollen"'), -1, 'no Pollen row off DWD');
   page.clickTab('watch');
   assert.equal(barHint(page, 'Watch bar'), iconRun('left', ['bt', 'qt', 'snooze', 'rain'])
-    + ' ' + iconRun('right', ['wind']));
+    + ' ' + iconRun('right', ['pollen', 'wind']));
 });
 
 // The grid's live rows are the bars whose Alerts row the Status bars tab shows: the same
@@ -546,8 +552,9 @@ test('the grid lists every bar the watch draws, live exactly where a screen show
   assert.equal(rain({}).length, 4, 'all four bars');
   assert.ok(rain({}).every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
   assert.ok(rain({ radarEnabled: false }).every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
-  assert.ok(bars({ radarMode: 'graph', healthMode: 'all', provider: 'metno' }, env,
-    { code: 'pollen' }).every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
+  const pollen = bars({ radarMode: 'status', healthMode: 'all', provider: 'metno' }, env, { code: 'pollen' });
+  assert.equal(pollen.length, 4, 'all four bars');
+  assert.ok(pollen.every((o) => o[2].disabled === undefined), 'Pollen with any Provider: live');
 });
 
 // --- the Alerts tab -----------------------------------------------------------------
@@ -752,11 +759,11 @@ test('the Alerts row\'s icons, resolver by resolver', () => {
   assert.equal(icons(right('pollen,wind', { provider: 'dwd' }), ENV.basalt, args),
     iconRun('right', ['pollen', 'wind']));
   assert.equal(icons(right('pollen,wind', { provider: 'metno' }), ENV.basalt, args),
-    iconRun('right', ['wind']), 'Pollen left out off DWD');
+    iconRun('right', ['pollen', 'wind']), 'Pollen with every Provider');
   assert.equal(icons(right('rain', { radarEnabled: false }), ENV.basalt, args),
     'None of the alerts placed here can show.', 'placed, but nothing that can show');
   assert.equal(icons(right('rain,pollen', { radarEnabled: false, provider: 'metno' }), ENV.basalt, args),
-    'None of the alerts placed here can show.', 'every item blocked');
+    iconRun('right', ['pollen']), 'only the blocked item drops out');
   assert.equal(icons(state({ statusTopOnDemandLeftItems: 'rain', statusTopOnDemandRightItems: 'uv',
     radarEnabled: false }), ENV.basalt, args), iconRun('right', ['uv']), 'a side with nothing to show drops out');
   assert.equal(icons(state({ statusTopOnDemandLeftItems: 'snooze,bt', statusTopOnDemandRightItems: '' }),

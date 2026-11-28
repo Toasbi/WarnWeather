@@ -233,13 +233,12 @@ function alertLooksAheadWhen(daysKey) {
  * @param {string} title The kind's sheet title, e.g. 'UV index'.
  * @param {string} subject The value the intro names, e.g. 'the UV index'.
  * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
- * @param {string} hint The levels slider's scale note ('' for none).
  * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
  * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] The kind's notes on
  *     its default levels (ALERT_LEVEL_CARDS), under the dialog's intro.
  * @returns {Object} Schema section (sheetOnly).
  */
-function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
+function alertSheet(keyStem, title, subject, iconName, coda, why) {
     var key = 'alert' + keyStem;
     var code = alertCodeOf(keyStem);
     return {
@@ -259,7 +258,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
         // The two hidden companions close levelLead, so the Look below keeps the divider
         // the cards draw; the warn look starts its own group (levelLook, joinsAbove
         // false) rather than gluing itself under Tomorrow's mark or Days.
-        items: showsOnRows(code, subject).concat(levelLead(keyStem, ALERT_VOICE, hint, null), [{
+        items: showsOnRows(code, subject).concat(levelLead(keyStem, ALERT_VOICE, '', null), [{
             type: 'segmented',
             messageKey: key + 'Display',
             label: 'Look',
@@ -327,6 +326,17 @@ function scaleVariantWhen(variant) {
     throw new Error('scaleVariantWhen: no gate for ' + variant);
 }
 /**
+ * "The Provider reads this pollen source" as a showWhen predicate: the page's rule
+ * (when-resolvers.js pollenSource) asks the fetch's own (pollen-days.js sourceOf). The pollen
+ * slot's and alert's dialogs describe only the source in use with it. A fresh object per call,
+ * like every item.
+ * @param {string} source 'dwd' | 'cams'.
+ * @returns {Object} The showWhen predicate.
+ */
+function pollenSourceWhen(source) {
+    return {when: 'pollenSource', args: source};
+}
+/**
  * A reference link in an alert-level card: opens outside the settings page, like the
  * key hints' links.
  * @param {string} href The page (HTML-escaped: &amp; between query parameters).
@@ -343,7 +353,8 @@ var DWD_GUST_WARNINGS = 'https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterie
 // Each weather alert's reasons for its default levels: notes under its dialog's intro
 // (alertSheet introNotes), one per unit or AQI scale its seed pair varies by
 // (status-thresholds.js scaleVariant), each shown only while that one is in effect
-// (scaleVariantWhen), so a sheet always shows exactly one. Always shown, stored levels or
+// (scaleVariantWhen), so a sheet always shows exactly one; pollen's one per pollen source
+// (pollenSourceWhen), each naming only its own. Always shown, stored levels or
 // not: they speak of the defaults ("By default, …"), the reference for picking others.
 // The numbers are the seeds (status-thresholds.js SEEDS) next to the published level
 // they sit on, written out because the reference words belong to them;
@@ -389,11 +400,20 @@ var ALERT_LEVEL_CARDS = {
             + 'cough. At Very poor, sensitive people should reduce outdoor activity.'
     }],
     Pollen: [{
+        showWhen: pollenSourceWhen('dwd'),
         text: 'By default, warn is at 2 (medium load) and danger at 3 (high load) on the '
             + refLink('https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html',
                 'German Weather Service’s (DWD) pollen index')
-            + '. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. '
-            + 'The DWD notes that very sensitive people can react strongly at low levels too.'
+            + ', where a half level like 2-3 counts as 2.5. High means, for example, more than 50 birch or 30 '
+            + 'grass pollen grains per cubic meter of air. The DWD notes that very sensitive people can react '
+            + 'strongly at low levels too.'
+    }, {
+        // The levels are pollen-days.js CAMS_TYPES: each type's day mean on its classes.
+        showWhen: pollenSourceWhen('cams'),
+        text: 'By default, warn is at 2 (medium) and danger at 3 (high). The level is the highest of the pollen '
+            + 'types, each rated in whole levels by its mean over the day in the '
+            + refLink('https://open-meteo.com/en/docs/air-quality-api', 'CAMS forecast (Open-Meteo)')
+            + '. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air.'
     }],
     Wind: [{
         showWhen: scaleVariantWhen('kph'),
@@ -418,8 +438,8 @@ var ALERT_LEVEL_CARDS = {
 };
 // The weather alerts' rows and sheets, in the card's order. `title` names both of a kind's
 // sheets (its alert sheet here, its slot sheet — schema.js alertSlotSheet); `subject` and
-// `iconName` feed the alert sheet's intro; Pollen is DWD's alone, like the pollen slot
-// itself; `why` is the kind's alert-level cards (ALERT_LEVEL_CARDS). The page's
+// `iconName` feed the alert sheet's intro; `why` is the kind's alert-level cards
+// (ALERT_LEVEL_CARDS). The page's
 // presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS, which
 // owns which alerts exist and their order): test/page/settings/config-schema.test.js pins this list's
 // stems to that order.
@@ -437,9 +457,8 @@ var ALERT_KINDS = [
         iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
         coda: ' To look ahead to later today and tomorrow, pick Open-Meteo for Air quality (Setup › Data sources). '
             + 'WAQI, which Auto mostly reads, has no forecast, so with it the alert uses the current reading.'},
-    {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
-        icon: 'pollen', gate: {key: 'provider', eq: 'dwd'}, why: ALERT_LEVEL_CARDS.Pollen,
-        hint: 'The DWD pollen index runs 0–3, and a half level like "2-3" counts as 2.5. Works only with the DWD weather provider.'},
+    {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen level', iconName: 'pollen',
+        icon: 'pollen', why: ALERT_LEVEL_CARDS.Pollen},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
         icon: 'wind', why: ALERT_LEVEL_CARDS.Wind}
 ];
@@ -634,17 +653,15 @@ function placementSheet(sheetId, title, code, intro) {
  * @param {string} sheetId The item's sheet, e.g. 'alertUv'.
  * @param {string} label Row label.
  * @param {string} icon Registered PConf.icons id (status-slot-icons.js).
- * @param {?Object} showWhen The row's own gate, or null.
  * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
  * @param {Object} editBadgeFrom The badge resolver ({resolver, args}).
  * @returns {Object} Schema item.
  */
-function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {
+function onDemandSheetRow(sheetId, label, icon, hintFrom, editBadgeFrom) {
     var row = {type: 'sheet', sheetId: sheetId, label: label, icon: icon, hintFrom: hintFrom};
     if (editBadgeFrom) { row.editBadgeFrom = editBadgeFrom; }
     // A row whose alert is on no bar reads dimmed (its summary says so).
     row.summaryFaintFrom = {not: onDemandPlacedWhen(ON_DEMAND_CODES[sheetId])};
-    if (showWhen) { row.showWhen = showWhen; }
     return row;
 }
 // Each Alerts-tab row's on-demand.js ITEMS code, by the sheet it opens.
@@ -664,21 +681,21 @@ function onDemandCardItems() {
     // "Not in any status bar" (dimmed) — alerts-page.js appends it to each resolver's text.
     return [
         {type: 'subheader', text: 'System info'},
-        onDemandSheetRow('odBattery', 'Battery', 'battery', null,
+        onDemandSheetRow('odBattery', 'Battery', 'battery',
             {resolver: 'onDemandBatteryText'}, null),
-        onDemandSheetRow('odBluetooth', 'Bluetooth', 'bluetooth', null,
+        onDemandSheetRow('odBluetooth', 'Bluetooth', 'bluetooth',
             {resolver: 'onDemandBluetoothText'}, null),
         // Quiet time and Battery saver have no settings of their own; their sheets place them
         // (the owner, 2026-10-02: "you need a sheet for them then too").
-        onDemandSheetRow('odQuiet', 'Quiet time', 'quiet', null,
+        onDemandSheetRow('odQuiet', 'Quiet time', 'quiet',
             {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}}, null),
-        onDemandSheetRow('odSleep', 'Battery saver', 'snooze', null,
+        onDemandSheetRow('odSleep', 'Battery saver', 'snooze',
             {resolver: 'onDemandSleepText'}, null),
         {type: 'subheader', text: 'Weather alerts'},
-        onDemandSheetRow('alertRain', 'Rain', 'rain', null,
+        onDemandSheetRow('alertRain', 'Rain', 'rain',
             {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}}, null)
     ].concat(ALERT_KINDS.map(function (k) {
-        return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon, k.gate || null,
+        return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon,
             {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
@@ -744,7 +761,7 @@ function sheetSections() {
         placementSheet('odSleep', 'Battery saver', 'snooze',
             'Shows the sleep icon at the edge of a status bar during the Battery saver hours (Watchface › Theme & night).'),
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
-        return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '', k.why);
+        return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.coda || '', k.why);
     }));
 }
 
@@ -754,6 +771,7 @@ module.exports = {
     BT_ICON_OPTIONS: BT_ICON_OPTIONS,
     alertCodeOf: alertCodeOf,
     onDemandPlacedWhen: onDemandPlacedWhen,
+    pollenSourceWhen: pollenSourceWhen,
     onDemandRow: onDemandRow,
     cardSections: cardSections,
     sheetSections: sheetSections

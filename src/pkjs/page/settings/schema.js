@@ -79,6 +79,7 @@ var BT_ICON_OPTIONS = alertsSchema.BT_ICON_OPTIONS;
 var alertCodeOf = alertsSchema.alertCodeOf;
 var onDemandPlacedWhen = alertsSchema.onDemandPlacedWhen;
 var onDemandRow = alertsSchema.onDemandRow;
+var pollenSourceWhen = alertsSchema.pollenSourceWhen;
 // The Forecast tab's line rows (page/forecast-graphs/forecast-lines-schema.js): the rows each metric
 // picker carries (Line style, Draw from, the graph scales, Visible values), the metric
 // pickers' derived hint and the two stripe styles the Area fill row reads.
@@ -838,7 +839,7 @@ var DATA_SOURCES_TEXT = 'Weather: Open-Meteo.com, MET Norway, Deutscher Wetterdi
     + 'Rain radar: Deutscher Wetterdienst, MET Norway, Rainbow.ai, Tomorrow.io.<br>'
     + 'Air quality: Open-Meteo.com with Copernicus Atmosphere Monitoring Service data, and the World Air Quality '
     + 'Index Project with the environmental agencies of its stations.<br>'
-    + 'Pollen: Deutscher Wetterdienst.<br>'
+    + 'Pollen: Deutscher Wetterdienst, and Open-Meteo.com with Copernicus Atmosphere Monitoring Service data.<br>'
     + 'Places: town names powered by Esri, place search by Open-Meteo.com (GeoNames) and LocationIQ.com.<br>'
     + 'Public holidays: Nager.Date.<br>'
     + 'Data from Open-Meteo.com, MET Norway and the Copernicus Atmosphere Monitoring Service is licensed under '
@@ -2109,7 +2110,20 @@ module.exports = {
                 }
             }
         }, '42', '58')),
-        alertSlotSheet('Pollen'),
+        // The pollen slot's dialog says what the slot shows, from the pollen source the Provider
+        // reads, and names only that one (alerts-schema.js pollenSourceWhen): its intro, then
+        // the source's note in the same card (engine.js dialogIntroHtml).
+        Object.assign(alertSlotSheet('Pollen'), {
+            intro: 'Today’s highest pollen level, from 0 (none) to 3 (high).',
+            introNotes: [{
+                showWhen: pollenSourceWhen('dwd'),
+                text: 'It comes from the DWD’s pollen index, with half levels like 1-2. It covers Germany; '
+                    + 'elsewhere the slot shows --.'
+            }, {
+                showWhen: pollenSourceWhen('cams'),
+                text: 'It comes from the CAMS forecast (Open-Meteo). It covers Europe; elsewhere the slot shows --.'
+            }]
+        }),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
         // not global. The phone bakes the arrow into the slot text (status-lines.js

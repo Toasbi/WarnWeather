@@ -26,6 +26,7 @@ const NOT_REQUESTED = {
   'www.weather.gov': 'a reference link in a level hint',
   'weather.metoffice.gov.uk': 'a reference link in a level hint',
   'www.dwd.de': 'reference links in the gust and pollen hints',
+  'open-meteo.com': 'a reference link in the pollen hint',
   'app.tomorrow.io': 'the Tomorrow.io signup and API-keys links',
   'developer.rainbow.ai': 'the Rainbow signup and profile links',
   'rainbow.ai': 'the Powered by Rainbow link',

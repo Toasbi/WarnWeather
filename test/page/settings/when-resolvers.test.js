@@ -2,7 +2,8 @@
 // (src/pkjs/page/settings/when-resolvers.js), the rules the schema's { when } leaves ask:
 // lineRow, the picker a Forecast-tab row that follows its metric sits under;
 // onDemandPlaced, an Alerts item on a status bar; defaultViewLacksOnDemand, a Default
-// view that draws no Alerts item; tempAxisLineDrawn, a drawn feels-like or dew point line.
+// view that draws no Alerts item; tempAxisLineDrawn, a drawn feels-like or dew point line;
+// pollenSource, the pollen source the Provider reads.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
@@ -13,6 +14,8 @@ const WR = require('../../../src/pkjs/page/settings/when-resolvers.js');
 const drawFrom = require('../../../src/pkjs/forecast-graphs/domain/draw-from.js');
 const OD = require('../../../src/pkjs/status-bars/domain/on-demand.js');
 const platform = require('../../../src/pkjs/config-ui/lib/platform.js');
+const pollenDays = require('../../../src/pkjs/weather/domain/pollen-days.js');
+const providerReadings = require('../../../src/pkjs/weather/domain/provider-readings.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
@@ -153,4 +156,16 @@ test('tempAxisLineDrawn is forecast-axis.js\' own reading, and a leaf asks it', 
   });
   assert.ok(shown > 0, 'premise: some state draws one');
   assert.equal(leaf({ fifthLine: 'dew' }, APLITE), false, 'aplite draws no Fourth metric line');
+});
+
+test('pollenSource holds for the pollen source the Provider reads, the fetch\'s own rule', () => {
+  assert.equal(global.PConf.whenResolvers.get('pollenSource'), WR.pollenSource);
+  const leaf = (source) => ({ when: 'pollenSource', args: source });
+  Object.keys(providerReadings.PROVIDERS).concat([undefined]).forEach((provider) => {
+    const S = Object.assign({ env: BASALT }, provider === undefined ? {} : { provider });
+    const source = pollenDays.sourceOf(provider);
+    assert.equal(showWhen.evaluate(leaf(source), S), true, provider + ': ' + source);
+    assert.equal(showWhen.evaluate(leaf(source === 'dwd' ? 'cams' : 'dwd'), S), false, provider + ': one source');
+  });
+  assert.equal(showWhen.evaluate(leaf('dwd'), { env: BASALT, provider: 'dwd' }), true, 'guard: the DWD reads its own');
 });

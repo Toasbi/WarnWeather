@@ -378,8 +378,8 @@ test('the forecast preview and its axis mirrors are bundled after every global t
 });
 
 // when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle,
-// window.DrawFrom, window.OnDemand, window.ForecastAxis and VIEW_CYCLE while its own body
-// runs, so it follows all five. Out of the page, nothing throws: an unregistered leaf reads false, so the
+// window.DrawFrom, window.OnDemand, window.ForecastAxis, window.PollenDays and VIEW_CYCLE
+// while its own body runs, so it follows all six. Out of the page, nothing throws: an unregistered leaf reads false, so the
 // rows that ask it would silently never show (or always, under a `not`) on a real phone
 // while every Node test passes through blocks.js' require().
 test('the when resolvers are bundled after the modules they ask', () => {
@@ -390,10 +390,10 @@ test('the when resolvers are bundled after the modules they ask', () => {
     return at;
   };
   ['forecast-graphs/domain/line-style.js', 'forecast-graphs/domain/draw-from.js', 'status-bars/domain/on-demand.js', 'layout/domain/view-cycle.js',
-    'forecast-graphs/domain/forecast-axis.js'].forEach((dep) =>
+    'forecast-graphs/domain/forecast-axis.js', 'weather/domain/pollen-days.js'].forEach((dep) =>
     assert.ok(idx(dep) < idx('page/settings/when-resolvers.js'), dep + ' must precede when-resolvers.js'));
   const src = page();
-  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand', 'tempAxisLineDrawn'].forEach((id) =>
+  ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand', 'tempAxisLineDrawn', 'pollenSource'].forEach((id) =>
     assert.ok(src.indexOf("PConf.whenResolvers.register('" + id + "'") !== -1,
       'nothing registers the ' + id + ' when resolver in the generated page'));
 });

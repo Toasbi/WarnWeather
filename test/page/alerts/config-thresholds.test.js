@@ -634,6 +634,25 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
     'and so does the warn look');
 });
 
+// The pollen slot's dialog says what the slot shows, from the pollen source the Provider
+// reads, and names only that one: the DWD's index with the DWD, the CAMS forecast with every
+// other Provider (pollen-days.js sourceOf).
+test('the pollen slot dialog\'s intro names only the pollen source the Provider reads', () => {
+  const INTRO = '<div class="card nohdr dlg-intro"><div class="intro">Today’s highest pollen level, from 0 (none) '
+    + 'to 3 (high).<p class="intro-more">';
+  const DWD = 'It comes from the DWD’s pollen index, with half levels like 1-2. It covers Germany; elsewhere the '
+    + 'slot shows --.';
+  const CAMS = 'It comes from the CAMS forecast (Open-Meteo). It covers Europe; elsewhere the slot shows --.';
+  [['dwd', DWD], ['openmeteo', CAMS], ['metno', CAMS]].forEach(([provider, note]) => {
+    const page = bootGeneratedPage({ provider });
+    page.clickTab('watch');
+    page.openEditSheet('threshPollen');
+    const sheet = page.modal.innerHTML;
+    assert.ok(sheet.indexOf(INTRO + note + '</p></div></div>') !== -1, provider + ': the intro, then its source\'s note');
+    assert.equal(sheet.split('class="intro-more"').length - 1, 1, provider + ': no other source\'s note');
+  });
+});
+
 // A goal kind keeps its switch on the Goals header, and its highlight-only rows mute
 // while it is off.
 test('the goal sheet: the switch rides the Goals header and mutes the warn look while off', () => {
@@ -1659,7 +1678,7 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
   const sheets = alertSheets().filter(s => s.sheetId !== 'alertRain');
   assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
   const SUBJECT = { Uv: 'the UV index', Wind: 'the wind speed', Gust: 'the gust speed',
-    Aqi: 'the air quality index', Pollen: 'the pollen index' };
+    Aqi: 'the air quality index', Pollen: 'the pollen level' };
   // Each intro names the kind's alert icon and where it shows (the owner's glossary).
   const ICON = { Uv: 'UV', Wind: 'wind', Gust: 'gust', Aqi: 'air quality', Pollen: 'pollen' };
   // The slot's "Tomorrow's peak mark" choices, the same list (schema nextDayMarkOptions).
@@ -1744,9 +1763,10 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     });
     assert.ok(!s.items.some(it => it.messageKey === 'thresh' + stem + 'On'),
       s.sheetId + ': the slot Highlight is not in this sheet');
-    // The cards on the default levels are notes under the dialog's intro, one per unit or
-    // AQI scale (test/page/alerts/config-alert-level-cards.test.js holds their numbers and gates).
-    const CARDS = { Gust: 3, Wind: 3, Aqi: 2, Uv: 1, Pollen: 1 };
+    // The cards on the default levels are notes under the dialog's intro, one per unit, AQI
+    // scale or pollen source (test/page/alerts/config-alert-level-cards.test.js holds their
+    // numbers and gates).
+    const CARDS = { Gust: 3, Wind: 3, Aqi: 2, Uv: 1, Pollen: 2 };
     const at = s.items.indexOf(range);
     assert.equal(range.hintFrom, undefined, s.sheetId + ': the slider carries no cards');
     assert.equal(s.introNotes.length, CARDS[stem], s.sheetId + ': one intro note per unit or scale');
@@ -1766,9 +1786,9 @@ test('every metric alert sheet: its intro, the Shows on grid, the levels group, 
     assert.equal(s.items.length, 3 + 1 + 1 + 2 + 3 + 3,
       s.sheetId + ': Shows on header + grid + note, levels header, slider, two companions, Look/Days/mark, the look rows');
   });
-  assert.equal(itemsByKey().threshPollenWarn[0].hint,
-    'The DWD pollen index runs 0–3, and a half level like "2-3" counts as 2.5. Works only with the DWD weather provider.',
-    'Pollen\'s scale note rides its slider in the alert sheet');
+  // No slider carries a scale note: pollen's half levels are its DWD card's, so the slider
+  // names no source.
+  ALERT_STEMS.forEach((stem) => assert.equal(itemsByKey()['thresh' + stem + 'Warn'][0].hint, '', stem));
 });
 
 test('the rain alert sheet: the Shows on card (note, radar-off and not-placed boxes, grid), then the time window, the look and Replaces the slot', () => {

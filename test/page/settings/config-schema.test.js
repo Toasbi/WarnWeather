@@ -2206,7 +2206,7 @@ const ITEM_SHEET = { battery: 'odBattery', bt: 'odBluetooth', qt: 'odQuiet', sno
   gust: 'alertGust', uv: 'alertUv', aqi: 'alertAqi', pollen: 'alertPollen', wind: 'alertWind' };
 const SHOWS_ON_NOTE = 'On each bar, the alert can show on the left or the right, not both. When a bar runs out of'
   + ' room, the alerts lower in the Alerts tab’s list are hidden first.';
-const SUBJECT = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index', pollen: 'the pollen index',
+const SUBJECT = { gust: 'the gust speed', uv: 'the UV index', aqi: 'the air quality index', pollen: 'the pollen level',
   wind: 'the wind speed' };
 const DEFAULT_VIEW_NOTE_TEXT = 'Your Default screen has no Watch bar, so this alert won’t show there. Tick a bar that screen shows.';
 
@@ -2332,8 +2332,7 @@ test('the Alerts tab\'s cards: gated to a watch with On demand; About alerts\' i
       hintFrom: { resolver: 'alertLevelsHint',
         args: { keyStem: stem, days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] } },
       editBadgeFrom: { resolver: 'alertLevelBadge', args: { keyStem: stem } }, summaryFaintFrom: faint(icon) };
-    if (stem === 'Pollen') { row.showWhen = { key: 'provider', eq: 'dwd' }; }
-    assert.deepEqual(it[7 + k], row, stem + ' row');
+    assert.deepEqual(it[7 + k], row, stem + ' row: shown with every Provider');
     assert.deepEqual(it[7 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
   });
   assert.ok(!sec.items.concat(it).some((r) => r.messageKey), 'no control on the cards: every row reads or opens a sheet');

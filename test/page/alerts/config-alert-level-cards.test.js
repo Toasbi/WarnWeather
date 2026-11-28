@@ -6,7 +6,8 @@
 // to ride the levels slider's info text). The cards write the seed numbers out next to the published levels
 // they sit on, so nothing derives them: this holds every card to its unit's or scale's
 // seed pair (status-thresholds.js seedPair), and its gate to the contract's
-// scaleVariant, so that exactly one card shows for every combination of the pickers.
+// scaleVariant and, for pollen, to the pollen source the Provider reads (pollen-days.js
+// sourceOf), so that exactly one card shows for every combination of the pickers.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../../../src/pkjs/config-ui/lib/schema-walk.js');
@@ -16,6 +17,7 @@ require('../../../src/pkjs/config-ui/lib/engine.js');
 require('../../../src/pkjs/page/settings/blocks.js');
 const schema = require('../../../src/pkjs/page/settings/schema.js');
 const thresholds = require('../../../src/pkjs/alerts/domain/status-thresholds.js');
+const pollenDays = require('../../../src/pkjs/weather/domain/pollen-days.js');
 
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 // The label each variant's numbers carry in the copy ('kph' as the page writes it);
@@ -63,17 +65,20 @@ function states(text, n, unit) {
 const plain = (html) => html.replace(/<[^>]*>/g, '');
 
 // Every combination of the pickers the variants hang on, absent values included (an
-// install that never stored a unit reads the fallbacks).
+// install that never stored a unit reads the fallbacks): the units, the AQI's source and
+// scale, and the Provider, whose pollen source the pollen cards follow.
 const COMBOS = [];
 [undefined, 'kph', 'mph', 'knots'].forEach((windUnits) =>
   [undefined, 'auto', 'waqi', 'openmeteo'].forEach((aqiSource) =>
-    [undefined, 'european', 'us'].forEach((aqiScale) => {
-      const S = {};
-      if (windUnits !== undefined) { S.windUnits = windUnits; }
-      if (aqiSource !== undefined) { S.aqiSource = aqiSource; }
-      if (aqiScale !== undefined) { S.aqiScale = aqiScale; }
-      COMBOS.push(S);
-    })));
+    [undefined, 'european', 'us'].forEach((aqiScale) =>
+      [undefined, 'dwd', 'openmeteo', 'metno'].forEach((provider) => {
+        const S = {};
+        if (windUnits !== undefined) { S.windUnits = windUnits; }
+        if (aqiSource !== undefined) { S.aqiSource = aqiSource; }
+        if (aqiScale !== undefined) { S.aqiScale = aqiScale; }
+        if (provider !== undefined) { S.provider = provider; }
+        COMBOS.push(S);
+      }))));
 
 test('exactly one card shows per alert for every unit and AQI scale, and it states that variant\'s seed pair', () => {
   ALERT_STEMS.forEach((stem) => {
@@ -93,8 +98,9 @@ test('exactly one card shows per alert for every unit and AQI scale, and it stat
   });
 });
 
-test('one card per unit or scale a kind\'s seed varies by, under the dialog\'s intro, not on the slider', () => {
-  const variants = (stem) => new Set(COMBOS.map((S) => thresholds.scaleVariant(stem, S))).size;
+test('one card per unit or scale a kind\'s seed varies by, and pollen\'s per pollen source, under the dialog\'s intro, not on the slider', () => {
+  const variants = (stem) => new Set(COMBOS.map((S) => thresholds.scaleVariant(stem, S)
+    + (stem === 'Pollen' ? ' ' + pollenDays.sourceOf(S.provider) : ''))).size;
   ALERT_STEMS.forEach((stem) => {
     const cards = cardsOf(stem);
     assert.equal(cards.length, variants(stem), stem);
@@ -172,4 +178,21 @@ test('the dialog shows the pickers\' card under its intro, in the intro card; Hi
   page.toggleInfo('d:alertWind', 'modal');
   assert.ok(page.modal.innerHTML.indexOf(introCard) !== -1 && page.modal.innerHTML.indexOf(kph[0].text) !== -1,
     'and both show once the \'?\' is opened');
+});
+
+test('the pollen cards name only the source the Provider reads', () => {
+  const shown = (provider) => cardsOf('Pollen').filter((c) => showWhen.isVisible(c, { env: {}, provider }))
+    .map((c) => plain(c.text));
+  [shown('dwd')].forEach((cards) => {
+    assert.equal(cards.length, 1);
+    assert.match(cards[0], /DWD/, 'the DWD\'s index with the DWD');
+    assert.match(cards[0], /half level/, 'its half levels');
+    assert.doesNotMatch(cards[0], /CAMS|Open-Meteo/);
+  });
+  [shown('openmeteo'), shown('metno'), shown(undefined)].forEach((cards) => {
+    assert.equal(cards.length, 1);
+    assert.match(cards[0], /CAMS forecast \(Open-Meteo\)/, 'the CAMS forecast with every other Provider');
+    assert.match(cards[0], /whole levels/);
+    assert.doesNotMatch(cards[0], /DWD|German/, 'no word of the DWD');
+  });
 });

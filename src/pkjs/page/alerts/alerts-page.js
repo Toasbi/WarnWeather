@@ -194,15 +194,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
     /**
-     * Whether a placed item cannot show, wherever it is placed: Rain while the radar is
-     * off, Pollen off the DWD provider.
+     * Whether a placed item cannot show, wherever it is placed: Rain while the radar is off.
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
      * @returns {?string} Why it cannot show, or null when it can.
      */
     function onDemandBlocked(S, code) {
         if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Setup › Data sources)'; }
-        if (code === 'pollen' && (!S || S.provider !== 'dwd')) { return 'DWD provider only'; }
         return null;
     }
 
@@ -213,9 +211,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * names its two side lists in meta.keys (Left, Right), the lists its ticks read and
      * write (reset-status-defaults.js onDemandTick). A bar no screen shows keeps an inert
      * row that says so. While the item
-     * cannot show at all (onDemandBlocked: Rain with the radar off, Pollen off DWD) the
-     * rows go inert and keep their ticks; the Rain sheet's box says why, and Pollen's card
-     * row (so its sheet) is gone off DWD.
+     * cannot show at all (onDemandBlocked: Rain with the radar off) the rows go inert and
+     * keep their ticks; the Rain sheet's box says why.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{code: string}} args The item.
@@ -264,7 +261,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * shell.html .ico-run), so a narrow phone wraps between the sides, never inside one.
      * Each icon carries its item's name (role img), so a screen reader reads "Left
      * Bluetooth Rain Right Battery".
-     * Blocked items (Rain with the radar off, Pollen off DWD) are left out, as the watch
+     * Blocked items (Rain with the radar off) are left out, as the watch
      * leaves them out; when every placed item is blocked the row says so. With nothing
      * placed, args.where alone ("None"). The names are on-demand.js ITEMS constants, never
      * settings: the engine prints a hint as raw HTML.

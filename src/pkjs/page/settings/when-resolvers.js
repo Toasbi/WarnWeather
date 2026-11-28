@@ -10,6 +10,8 @@
 //    and on-demand.js).
 //  - tempAxisLineDrawn: a feels-like or dew point line is drawn, the Left axis card's
 //    'High/low includes feels-like & dew point' gate: forecast-axis.js' own function, registered as is.
+//  - pollenSource: the Provider reads the pollen source args names (pollen-days.js sourceOf),
+//    so the pollen slot's and alert's dialogs describe only the source in use.
 // Each gets (S, env, args): S is the showWhen context, the settings plus their env.
 // Under Node, blocks.js requires this file, so requiring blocks.js registers these too;
 // the webview concatenates it ahead of blocks.js (scripts/build-config-page.js APP_FILES).
@@ -32,6 +34,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
     var VC = (typeof require !== 'undefined') ? require('../../layout/domain/view-cycle.js') : VIEW_CYCLE;
     var forecastAxis = (typeof require !== 'undefined')
         ? require('../../forecast-graphs/domain/forecast-axis.js') : window.ForecastAxis;
+    var pollenDays = (typeof require !== 'undefined')
+        ? require('../../weather/domain/pollen-days.js') : window.PollenDays;
 
     /**
      * The picker a row that follows its metric sits under. With `from` (a Draw from key):
@@ -102,17 +106,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.whenR
         return true;
     }
 
+    /**
+     * Whether the Provider reads the pollen source args names (pollen-days.js sourceOf: the
+     * DWD's index with the DWD, the CAMS forecast with every other Provider).
+     * @param {Object} S The showWhen context (the settings plus their env).
+     * @param {Object} env Platform env (unused).
+     * @param {string} source 'dwd' | 'cams'.
+     * @returns {boolean}
+     */
+    function pollenSource(S, env, source) {
+        return pollenDays.sourceOf(S.provider) === source;
+    }
+
     PConf.whenResolvers.register('lineRow', lineRow);
     PConf.whenResolvers.register('onDemandPlaced', onDemandPlaced);
     PConf.whenResolvers.register('defaultViewLacksOnDemand', defaultViewLacksOnDemand);
     PConf.whenResolvers.register('tempAxisLineDrawn', forecastAxis.tempAxisLineDrawn);
+    PConf.whenResolvers.register('pollenSource', pollenSource);
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             hostLine: hostLine,
             lineRow: lineRow,
             onDemandPlaced: onDemandPlaced,
-            defaultViewLacksOnDemand: defaultViewLacksOnDemand
+            defaultViewLacksOnDemand: defaultViewLacksOnDemand,
+            pollenSource: pollenSource
         };
     }
 })();
