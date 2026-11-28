@@ -497,3 +497,63 @@ test('each fetch cycle resets today\'s and tomorrow\'s band: a refresh that brin
   assert.deepEqual(tomorrows, ['3', null]);
   assert.equal(successCalls, 2);
 });
+
+test('a failed refresh after a good one still sends the day\'s band, through the real adapter', () => {
+  const WeatherProvider = require('../../../src/pkjs/weather/adapter/provider.js');
+  const airQuality = require('../../../src/pkjs/weather/adapter/air-quality.js');
+  const renderPayload = require('../../../src/pkjs/weather/application/render-payload.js');
+  const outbox = require('../../../src/pkjs/wire/adapter/outbox.js');
+  const originalAqi = airQuality.fetchAqiInto;
+  const originalRequest = http.request;
+  const originalSend = outbox.sendWeather;
+  const provider = new WeatherProvider();
+  provider.options = DWD;
+  const packedValues = [];
+  const tomorrows = [];
+  const pollenUrls = [];
+
+  provider.withCityName = function(lat, lon, done) { done('Berlin', 'DE'); };
+  provider.withSunEvents = function(lat, lon, done) {
+    done([{ type: 'sunrise', date: new Date(1700003600000) }]);
+  };
+  provider.withProviderData = function(lat, lon, force, done) {
+    provider.tempTrend = [68];
+    provider.precipTrend = [0];
+    provider.currentTemp = 68;
+    provider.startTime = 1700000000;
+    provider.numEntries = 1;
+    done();
+  };
+  provider.hasValidData = function() { return true; };
+  airQuality.fetchAqiInto = function(p, lat, lon, done) { done(); };
+  // The DWD answers the first refresh and fails the second.
+  http.request = function (url, method, onSuccess, onError) {
+    pollenUrls.push(url);
+    if (pollenUrls.length === 1) { GOOD.dwd(url, onSuccess); } else { FAILURES['a failed request'](url, onSuccess, onError); }
+  };
+  outbox.sendWeather = function(payload, done) {
+    var length = payload.STATUS_LINE_1_UINT8[2];
+    packedValues.push(Buffer.from(payload.STATUS_LINE_1_UINT8.slice(3, 3 + length)).toString('utf8'));
+    done();
+  };
+
+  const settings = {
+    provider: 'dwd', statusForecastLeft: 'pollen', secondaryLine: 'precip_prob',
+    thirdLine: 'off', barSource: 'off', theme: 'dark'
+  };
+  function transform(payload) {
+    tomorrows.push(payload.POLLEN_TOMORROW);
+    return renderPayload.toRenderPayload(payload, settings, { platform: 'basalt' }, NOW);
+  }
+  try {
+    [1, 2].forEach(() => provider.fetchWithCoordinates(52.52, 13.405, function() {}, assert.fail, false, {},
+      transform, undefined, testPorts()));
+  } finally {
+    airQuality.fetchAqiInto = originalAqi;
+    http.request = originalRequest;
+    outbox.sendWeather = originalSend;
+  }
+  assert.deepEqual(pollenUrls, [pollen.buildUrl(52.52, 13.405), pollen.buildUrl(52.52, 13.405)]);
+  assert.deepEqual(packedValues, ['1', '1'], 'today\'s band, the second time from the last answer');
+  assert.deepEqual(tomorrows, ['3', '3']);
+});
