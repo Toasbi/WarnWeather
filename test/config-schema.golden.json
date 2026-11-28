@@ -7768,6 +7768,7 @@
                 "type": "segmented",
                 "messageKey": "threshSunBoldMode",
                 "label": "Bold",
+                "hint": "Applies to every sun and moon slot.",
                 "defaultValue": "off",
                 "options": [
                   [
@@ -7785,8 +7786,7 @@
                     "off",
                     "all"
                   ]
-                },
-                "hint": "Applies to every sun and moon slot."
+                }
               }
             ],
             "intro": "Sunrise/sunset shows the next sunrise or sunset. Dawn/dusk shows the next dawn or dusk: when it gets light in the morning and dark in the evening. Day length shows how long the sun is up today. Your phone works all three out from your location.",
@@ -7893,6 +7893,7 @@
                 "type": "segmented",
                 "messageKey": "threshSunBoldMode",
                 "label": "Bold",
+                "hint": "Applies to every sun and moon slot.",
                 "defaultValue": "off",
                 "options": [
                   [
@@ -7910,8 +7911,7 @@
                     "off",
                     "all"
                   ]
-                },
-                "hint": "Applies to every sun and moon slot."
+                }
               },
               {
                 "type": "subheader",

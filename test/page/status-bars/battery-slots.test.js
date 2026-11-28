@@ -142,10 +142,10 @@ test('the watch battery\'s Look leads its dialog in every look; its slot keeps t
 
 test('every slot has a Phone battery dialog of its own: the slot\'s Look, then Bold', () => {
   assert.equal(SLOT_KEYS.length, 21, 'the four bars and bars 4 to 6');
-  assert.equal(new Set(SLOT_KEYS.map(catalog.phoneBatterySheet)).size, 21, 'one dialog per slot');
-  assert.equal(catalog.phoneBatterySheet('statusForecastLeft'), 'threshPhoneBatteryForecastLeft', 'named after its slot');
+  assert.equal(new Set(SLOT_KEYS.map((k) => catalog.editSheet('phoneBattery', k))).size, 21, 'one dialog per slot');
+  assert.equal(catalog.editSheet('phoneBattery', 'statusForecastLeft'), 'threshPhoneBatteryForecastLeft', 'named after its slot');
   SLOT_KEYS.forEach((slotKey) => {
-    const dialog = sheet(catalog.phoneBatterySheet(slotKey));
+    const dialog = sheet(catalog.editSheet('phoneBattery', slotKey));
     assert.equal(dialog.title, 'Phone battery slot', slotKey);
     assert.equal(dialog.sheetOnly, true, slotKey + ': opened by its slot\'s Edit button, never a card');
     assert.deepEqual(dialog.showWhen, { env: 'thresholds' }, slotKey + ': no slot dialogs on aplite');
@@ -452,7 +452,7 @@ test('the Edit button opens the Watch battery\'s dialog in every look; the drawn
       const state = {};
       state[slotKey] = 'phoneBattery';
       state[catalog.phoneBatteryLookKey(slotKey)] = look;
-      assert.equal(sheetOf(state, env, { messageKey: slotKey }), catalog.phoneBatterySheet(slotKey), slotKey + ', ' + look);
+      assert.equal(sheetOf(state, env, { messageKey: slotKey }), catalog.editSheet('phoneBattery', slotKey), slotKey + ', ' + look);
       assert.equal(sheetOf(state, { thresholds: false }, { messageKey: slotKey }), null, slotKey + ' on aplite');
     });
   });
@@ -526,7 +526,7 @@ test('a bar that is made or deleted puts its slots\' Looks back on their default
   S.statusBar4Left = 'phoneBattery';
   const dialog = (id) => PConf.engine.renderEditModal(schema, { S: S, ENV: env, USERDATA: {}, openColor: null,
     openSelect: null, openEdit: id, selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: env }) });
-  const html = dialog(catalog.phoneBatterySheet('statusBar4Left'));
+  const html = dialog(catalog.editSheet('phoneBattery', 'statusBar4Left'));
   assert.ok(html.indexOf('class="on" data-k="statusBar4LeftPhoneBatteryLook" data-v="both"') !== -1, 'Icon + text picked');
   // Delete status bar: the same, and Undo puts the Look back.
   S.statusBar4LeftPhoneBatteryLook = 'text';

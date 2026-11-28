@@ -661,7 +661,7 @@ test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite
   catalog.everySlotKey().forEach((slotKey) => {
     const S = { [slotKey]: 'pluginValue' };
     const sheet = resolve(S, { thresholds: true }, { messageKey: slotKey });
-    assert.equal(sheet, catalog.pluginValueSheet(slotKey), slotKey);
+    assert.equal(sheet, catalog.editSheet('pluginValue', slotKey), slotKey);
     const dialog = schema.tabs.find((tab) => tab.id === 'watch').sections.find((sec) => sec.sheetId === sheet);
     assert.ok(dialog, slotKey + ': its dialog is in the schema');
     assert.ok(dialog.items.some((it) => it.messageKey === catalog.pluginValueKeys(slotKey).plugin),
@@ -670,7 +670,7 @@ test('the Edit button opens each slot\'s own dialog, in every bar, not on aplite
     assert.equal(resolve(S, { thresholds: false }, { messageKey: slotKey }), null, slotKey + ' on aplite');
   });
   assert.equal(sheets.size, 21, 'a dialog of its own for each slot');
-  assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
+  assert.equal(catalog.editSheet('pluginValue', 'statusTopRight'), 'threshPluginValueTopRight');
 });
 
 test('the Edit button\'s B lights on every Plugin value slot while the item prints bold, but in the Icon look', () => {
@@ -712,7 +712,7 @@ function slotSettings(over) {
  */
 function dialogHtml(state, slotKey = SLOT) {
   return PConf.engine.renderEditModal(schema, { S: state, ENV: BASALT, USERDATA: {}, openColor: null,
-    openSelect: null, openEdit: catalog.pluginValueSheet(slotKey), selectQuery: '', collapsed: {},
+    openSelect: null, openEdit: catalog.editSheet('pluginValue', slotKey), selectQuery: '', collapsed: {},
     evalCtx: Object.assign({}, state, { env: BASALT }) });
 }
 

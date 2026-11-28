@@ -365,16 +365,23 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
 }
 /**
  * A level-less kind's Bold row: Off or Always (schema.js boldSection, the slots' own dialogs).
- * Off is the default and needs no words; Always says how far it reaches (BOLD_ALWAYS_HINT), or
- * a hint resolver says it for every mode where the row reaches further: the Plugin value's
- * sets every slot's that holds it.
+ * Off is the default and needs no words; Always says how far it reaches (BOLD_ALWAYS_HINT). A
+ * row that reaches further says so for every mode, in its own hint: a fixed one (the sun and
+ * moon slots share theirs) or a resolver's (the Plugin value's sets every slot's that holds it).
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
- * @param {Object} [hintFrom] The row's hint resolver ({resolver}), in place of the Always hint.
+ * @param {{hint: string}|{hintFrom: Object}} [reach] The row's hint for every mode, in place of
+ *     the Always hint: its text ({hint}) or its resolver ({hintFrom: {resolver}}).
  * @returns {Object} The row.
  */
-function boldOnlyRow(keyStem, hintFrom) {
+function boldOnlyRow(keyStem, reach) {
     var row = {type: 'segmented', messageKey: 'thresh' + keyStem + 'BoldMode', label: 'Bold'};
-    if (hintFrom) { row.hintFrom = hintFrom; } else { row.hintByValue = {always: BOLD_ALWAYS_HINT}; }
+    if (reach && reach.hintFrom) {
+        row.hintFrom = reach.hintFrom;
+    } else if (reach) {
+        row.hint = reach.hint;
+    } else {
+        row.hintByValue = {always: BOLD_ALWAYS_HINT};
+    }
     row.defaultValue = 'off';
     row.options = [['Off', 'off'], ['Always', 'always']];
     row.disabledWhen = gates.BOLD_MASTER_WHEN;

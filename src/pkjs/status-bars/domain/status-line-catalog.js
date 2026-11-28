@@ -114,12 +114,17 @@
     // three are worked out on the phone from the clock and the place (sky-slots.js), so they need
     // no weather fetch, and a bake between fetches turns them at dawn, dusk and midnight
     // (status-rebake.js onTick). Their baked icons vary (status-lines.js iconFor): these are the
-    // ones they start from. None on aplite, whose feature set is frozen.
+    // ones they start from. The three take the Sunrise/sunset slot's kind (boldKind), so the Sun
+    // slot's one Bold row sets all four, as the watch maps their icons to its kind
+    // (status_threshold.c status_icon_is_sky); the Moon phase's Look, Shows and Name are in a
+    // dialog of its own (sheet). None on aplite, whose feature set is frozen.
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'sky' },
-    { code: 'twilight', label: 'Dawn/dusk', kind: KINDS.TEXT, icon: ICONS.DUSK, notAplite: true, category: 'sky' },
+    { code: 'twilight', label: 'Dawn/dusk', kind: KINDS.TEXT, icon: ICONS.DUSK, notAplite: true, category: 'sky',
+      boldKind: 'sun' },
     { code: 'dayLength', label: 'Day length', kind: KINDS.TEXT, icon: ICONS.DAY_LENGTH, notAplite: true,
-      category: 'sky' },
-    { code: 'moon', label: 'Moon phase', kind: KINDS.TEXT, icon: ICONS.MOON_FULL, notAplite: true, category: 'sky' },
+      category: 'sky', boldKind: 'sun' },
+    { code: 'moon', label: 'Moon phase', kind: KINDS.TEXT, icon: ICONS.MOON_FULL, notAplite: true, category: 'sky',
+      boldKind: 'sun', sheet: 'Moon' },
     // Any position since custom layouts: the calendar can sit anywhere or be absent
     // now, so the date is a first-class slot like City (the middle-only gate was a
     // leftover from when it was hard-wired into the strip's centre; the watch's
@@ -158,17 +163,21 @@
     // The PHONE's battery: phone-baked TEXT. It carries its own icon (or, in its Text
     // look, deliberately none: slot-text.js phoneBatteryLook, status-lines.js iconFor)
     // and fits any slot. Its Look is each slot's own (phoneBatteryLookKey), so it can
-    // show its icon in one slot and not in another. Until 3.3.0 the Text look was an
-    // item of its own, 'phoneBatteryPlain'.
+    // show its icon in one slot and not in another, and each slot has a dialog of its own
+    // (sheet, sheetPerSlot: editSheet). Until 3.3.0 the Text look was an item of its own,
+    // 'phoneBatteryPlain'.
     { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
-      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery',
+      sheet: 'PhoneBattery', sheetPerSlot: true },
     // A value another app's plugin serves (plugin-values.js), its source, Look and icon each
-    // slot's own (pluginValueKeys), so each slot that holds it shows a value of its own. Its
+    // slot's own (pluginValueKeys), so each slot that holds it shows a value of its own and has a
+    // dialog of its own (sheet, sheetPerSlot: editSheet). Its
     // icon is one of the watch's own, picked for it (plugin-values.js iconId): the watch draws
     // no plugin's picture. Only where the Pebble app reads plugins (needsPlugins), and never
     // on aplite, whose feature set is frozen.
     { code: 'pluginValue', label: 'Plugin value', kind: KINDS.TEXT, icon: ICONS.PLUGIN_TEXT,
-      needsPlugins: true, notAplite: true, category: 'plugin', repeatsInBar: true }
+      needsPlugins: true, notAplite: true, category: 'plugin', repeatsInBar: true,
+      sheet: 'PluginValue', sheetPerSlot: true }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
@@ -419,7 +428,7 @@
 
   /**
    * @returns {string[]} Every bar's slot settings keys, the four bars' and bars 4 to 6's (21), in
-   *   line order: the slots whose own settings and dialogs (pluginValueKeys, phoneBatterySheet)
+   *   line order: the slots whose own settings and dialogs (pluginValueKeys, editSheet)
    *   the page and the migrations go through.
    */
   function everySlotKey() {
@@ -651,25 +660,21 @@
   }
 
   /**
-   * The settings page's dialog of an item a slot's Edit button opens: the slot's own where the
-   * item's settings in it are (pluginValueKeys, phoneBatteryLookKey), since a dialog cannot tell
-   * which slot opened it.
-   * @param {string} item The item's part of the id, e.g. 'PluginValue'.
-   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
-   * @returns {string} The dialog's sheet id, e.g. 'threshPluginValueForecastLeft'.
+   * The settings page's dialog a slot's Edit button opens for an item with a dialog of its own
+   * (its entry's sheet), in place of its kind's (blocks.js statusSlotEditSheet; schema.js builds
+   * each under this id). An item whose settings are each slot's own (sheetPerSlot: the phone
+   * battery's Look, phoneBatteryLookKey; the Plugin value's, pluginValueKeys) has one per slot,
+   * since a dialog cannot tell which slot opened it.
+   * @param {*} code A slot's item code.
+   * @param {string} [slotKey] The slot's settings key, e.g. 'statusForecastLeft', for an item with
+   *   a dialog per slot.
+   * @returns {?string} The dialog's sheet id, e.g. 'threshMoon' or 'threshPluginValueForecastLeft';
+   *   null for an item that opens its kind's dialog, or none.
    */
-  function slotSheet(item, slotKey) {
-    return 'thresh' + item + slotKey.replace(/^status/, '');
-  }
-
-  /**
-   * The settings page's dialog a slot's Edit button opens while the slot holds the Plugin value
-   * (slotSheet): the slot's own, since its settings are (pluginValueKeys).
-   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
-   * @returns {string} The dialog's sheet id, e.g. 'threshPluginValueForecastLeft'.
-   */
-  function pluginValueSheet(slotKey) {
-    return slotSheet('PluginValue', slotKey);
+  function editSheet(code, slotKey) {
+    var item = byCode(code);
+    if (!item || !item.sheet) { return null; }
+    return 'thresh' + item.sheet + (item.sheetPerSlot ? slotKey.replace(/^status/, '') : '');
   }
 
   /**
@@ -691,18 +696,6 @@
    */
   function phoneBatteryLookKey(slotKey) {
     return slotKey + 'PhoneBatteryLook';
-  }
-
-  /**
-   * The settings page's dialog a slot's Edit button opens while the slot holds the phone
-   * battery (slotSheet): the slot's own, since the Look in it is (phoneBatteryLookKey). The page
-   * builds one per slot (schema.js phoneBatterySlotSheet) and the Edit button names it (blocks.js
-   * statusSlotEditSheet).
-   * @param {string} slotKey A slot's settings key, e.g. 'statusForecastLeft'.
-   * @returns {string} The dialog's sheet id, e.g. 'threshPhoneBatteryForecastLeft'.
-   */
-  function phoneBatterySheet(slotKey) {
-    return slotSheet('PhoneBattery', slotKey);
   }
 
   // The phone battery's Look in a slot that has none set: the phone's icon before its charge
@@ -789,9 +782,9 @@
     DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
     batterySettingKeys: batterySettingKeys, pluginValueKeys: pluginValueKeys,
     pluginValueKeyList: pluginValueKeyList,
-    pluginValueSheet: pluginValueSheet,
+    editSheet: editSheet,
     countdownKey: countdownKey,
-    phoneBatteryLookKey: phoneBatteryLookKey, phoneBatterySheet: phoneBatterySheet,
+    phoneBatteryLookKey: phoneBatteryLookKey,
     PHONE_BATTERY_LOOK_DEFAULT: PHONE_BATTERY_LOOK_DEFAULT, slotCompanions: slotCompanions
   };
 

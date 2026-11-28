@@ -118,8 +118,9 @@ var BARS_TOP_HINT = 'The more rain, the further down they reach.';
  * @param {string} keyStem Kind key stem, e.g. 'City'.
  * @param {string} title Catalog label of the slot kind.
  * @param {Object[]} items The sheet's rows.
- * @param {string} [sheetId] The id of a dialog that is one slot's own rather than the
- *     kind's (a phone battery slot's: phoneBatterySlotSheet); thresh<Stem> without it.
+ * @param {string} [sheetId] The id of an item's own dialog rather than the kind's
+ *     (status-line-catalog.js editSheet: the Moon phase's, a phone battery slot's);
+ *     thresh<Stem> without it.
  * @returns {Object} Schema section.
  */
 function sheetOf(keyStem, title, items, sheetId) {
@@ -697,16 +698,13 @@ function boldSection(title, keyStem, gate, extraItems, afterItems) {
 }
 
 // The sun and moon slots' Bold: one setting, the Sunrise/sunset slot's kind, which Dawn/dusk, Day
-// length and the Moon phase take too (status-thresholds.js itemKindId), so its hint says so for
+// length and the Moon phase take too (their catalog entries' boldKind), so its hint says so for
 // either value.
 /**
  * @returns {Object} The Bold row of the Sun and the Moon phase slots' dialogs.
  */
 function skyBoldRow() {
-    var row = boldOnlyRow('Sun');
-    delete row.hintByValue;
-    row.hint = 'Applies to every sun and moon slot.';
-    return row;
+    return boldOnlyRow('Sun', {hint: 'Applies to every sun and moon slot.'});
 }
 
 // The Sun slot's dialog, which Edit opens beside Sunrise/sunset, Dawn/dusk and Day length
@@ -722,8 +720,8 @@ function sunSlotSheet() {
     });
 }
 
-// The Moon phase slot's dialog (sheet 'threshMoon', which Edit opens beside it: blocks.js
-// statusSlotEditSheet). Its Look leads, with the weather condition's options in its order: the
+// The Moon phase slot's dialog (the catalog's editSheet('moon'), which Edit opens beside it:
+// blocks.js statusSlotEditSheet). Its Look leads, with the weather condition's options in its order: the
 // moon as it looks tonight with the text Shows picks (Icon + text), the text alone (Text) or the
 // moon alone (Icon; slot-text.js moonLook). Shows (moonShows) and Name (moonName, the phase's
 // name only) show while the Look prints text. Every Moon phase slot shows them alike, and the
@@ -776,7 +774,7 @@ function moonSlotSheet() {
         type: 'staticText',
         text: 'Worked out on your phone from the date, with no internet. South of the equator the picture is '
             + 'mirrored, as you see the moon there.'
-    }]);
+    }], STATUS_LINE_CATALOG.editSheet('moon'));
 }
 
 // The watch battery's dialog (its slot's Edit button opens it in every look: blocks.js
@@ -861,7 +859,7 @@ function batterySlotSheet() {
  * phone's icon before its charge or the charge alone, then Bold. The Look is the slot's own
  * setting, like its countdown date, so one slot can show the phone's icon and another the
  * charge alone. The engine hands a dialog no word of the slot that opened it, so each slot has
- * a dialog of its own (status-line-catalog.js phoneBatterySheet), which its Edit button names
+ * a dialog of its own (status-line-catalog.js editSheet), which its Edit button names
  * (blocks.js statusSlotEditSheet). Bold is the item's, one setting for every slot: the two
  * looks are separate wire kinds (18/19), so the Text look can't drive City's bold row, and
  * both KINDS entries share key 'PhoneBattery', so the one mode packs into both cells. Only
@@ -880,7 +878,7 @@ function phoneBatterySlotSheet(slotKey) {
         // 'both': the value a new or deleted bar's slot starts on too (screens.js makeBar).
         defaultValue: STATUS_LINE_CATALOG.PHONE_BATTERY_LOOK_DEFAULT,
         options: [['Icon + text', 'both'], ['Text', 'text']]
-    }, boldOnlyRow('PhoneBattery')], STATUS_LINE_CATALOG.phoneBatterySheet(slotKey));
+    }, boldOnlyRow('PhoneBattery')], STATUS_LINE_CATALOG.editSheet('phoneBattery', slotKey));
 }
 
 /**

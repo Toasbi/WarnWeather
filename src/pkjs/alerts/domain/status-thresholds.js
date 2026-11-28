@@ -33,6 +33,10 @@
   // (APP_FILES).
   var onDemand = (typeof require !== 'undefined')
     ? require('../../status-bars/domain/on-demand.js') : window.OnDemand;
+  // The status slots' items, for the kind each takes (itemKindId). The flat page concatenates
+  // status-line-catalog.js ahead of this file (APP_FILES); it requires none of this.
+  var catalog = (typeof require !== 'undefined')
+    ? require('../../status-bars/domain/status-line-catalog.js') : window.StatusLineCatalog;
 
   // thresh<Kind>WarnLook -> the 2-bit wire value (ThreshWarnLook).
   var WARN_LOOKS = {none: 0, outline: 1, fill: 2};
@@ -540,19 +544,17 @@
     return -1;
   }
 
-  // The slot items that take another item's kind: the sun and moon slots worked out on the phone
-  // take the Sunrise/sunset slot's, so its one Bold row sets all four (the watch maps their icons
-  // to THRESH_SUN alike: status_threshold.c status_icon_is_sky). No kind of their own, so the
-  // wire and the Clay message stay as they are.
-  var KIND_OF_ITEM = { twilight: 'sun', dayLength: 'sun', moon: 'sun' };
-
   /**
+   * The kind a slot item takes: its own, or another item's where its catalog entry names one
+   * (boldKind: the sun and moon slots worked out on the phone take the Sunrise/sunset slot's, so
+   * its one Bold row sets all four). Such an item has no kind of its own, so the wire and the Clay
+   * message stay as they are.
    * @param {*} code A status slot item's code.
-   * @returns {number} The wire kind id of the kind its slot takes: its own, or the one it shares
-   *   (KIND_OF_ITEM); -1 for an item with none.
+   * @returns {number} The wire kind id of the kind its slot takes; -1 for an item with none.
    */
   function itemKindId(code) {
-    return kindId(Object.prototype.hasOwnProperty.call(KIND_OF_ITEM, code) ? KIND_OF_ITEM[code] : code);
+    var item = catalog.byCode(code);
+    return kindId(item && item.boldKind ? item.boldKind : code);
   }
 
   /**

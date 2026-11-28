@@ -168,22 +168,16 @@ if (typeof require !== 'undefined') {
     // (the Look is the dialog's first row). The catalog's slot codes and the threshold
     // contract's KINDS codes are the same vocabulary ('wind', 'aqi', 'steps', ...), so the
     // contract IS the mapping — no hand-copied list to drift; the sun slots worked out on the
-    // phone open the Sunrise/sunset slot's, whose kind they take, and the Moon phase, which takes
-    // it too, opens its own (schema.js moonSlotSheet). The phone battery's and the
-    // Plugin value's dialogs are their slot's own, since their Look and source are
-    // (status-line-catalog.js phoneBatterySheet, pluginValueSheet): a dialog is told nothing
-    // of the slot that opened it, but this resolver is. env gate mirrors the sheets' own
-    // showWhen (aplite compiles the highlight out).
+    // phone open the Sunrise/sunset slot's, whose kind they take. An item with a dialog of its
+    // own opens that (status-line-catalog.js editSheet): the Moon phase's, and the phone
+    // battery's and the Plugin value's, which are their slot's own since their Look and source
+    // are: a dialog is told nothing of the slot that opened it, but this resolver is. env gate
+    // mirrors the sheets' own showWhen (aplite compiles the highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         var code = S[args.messageKey];
         var kind = slotKindIndex(env, code);
         if (kind === -1) { return null; }
-        if (code === 'phoneBattery') { return statusLineCatalog.phoneBatterySheet(args.messageKey); }
-        if (code === 'pluginValue') { return statusLineCatalog.pluginValueSheet(args.messageKey); }
-        // The Moon phase has a dialog of its own (its Look, Shows and Name), though it takes the
-        // Sunrise/sunset slot's kind.
-        if (code === 'moon') { return 'threshMoon'; }
-        return 'thresh' + thresholds.KINDS[kind].key;
+        return statusLineCatalog.editSheet(code, args.messageKey) || 'thresh' + thresholds.KINDS[kind].key;
     });
 
     /**

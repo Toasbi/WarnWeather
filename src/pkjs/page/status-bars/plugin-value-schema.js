@@ -11,7 +11,7 @@
 // pluginValueKeys), so each slot that holds the item shows a value of its own. The engine hands a
 // dialog's rows no word of the slot that opened it, so each names its slot to its resolvers and
 // its change's hooks (args.slotKey, onChangeArgs), and the slot's Edit button opens its own
-// (status-line-catalog.js pluginValueSheet). No row stores its default (sticky: false): a slot
+// (status-line-catalog.js editSheet). No row stores its default (sticky: false): a slot
 // without a pick keeps no setting of it, which plugin-values.js reads as none (PICK_DEFAULTS).
 // Bold closes the dialog as in every slot's: the item's, one setting for every slot that holds it
 // (status-thresholds.js KINDS 'pluginValue', kind 21), as the phone battery's is, so its hint says
@@ -31,7 +31,7 @@ var boldOnlyRow = require('../alerts/level-rows-schema.js').boldOnlyRow;
  * @param {function(string, string, Object[], string): Object} sheetOf schema.js sheetOf: a slot
  *   dialog's envelope (gated where the watch has slot dialogs).
  * @param {string} slotKey The slot's settings key, e.g. 'statusTopRight'.
- * @returns {Object} Schema section (sheetOnly), the slot's (catalog pluginValueSheet).
+ * @returns {Object} Schema section (sheetOnly), the slot's (catalog editSheet).
  */
 function slotDialog(sheetOf, slotKey) {
     var keys = catalog.pluginValueKeys(slotKey);
@@ -48,7 +48,7 @@ function slotDialog(sheetOf, slotKey) {
         {when: 'pluginValueFromMuninn', args: slot});
     // Bold, in a Look with text: its hints say that it sets every slot's (plugin-value-page.js
     // boldHint).
-    var bold = gates.alsoWhen([boldOnlyRow('PluginValue', {resolver: 'pluginValueBoldHint'})], withText);
+    var bold = gates.alsoWhen([boldOnlyRow('PluginValue', {hintFrom: {resolver: 'pluginValueBoldHint'}})], withText);
     return sheetOf('PluginValue', 'Plugin value', note.concat([{
         type: 'select',
         messageKey: keys.plugin,
@@ -141,7 +141,7 @@ function slotDialog(sheetOf, slotKey) {
         label: 'Last value',
         hintFrom: {resolver: 'pluginValueLast', args: slot},
         showWhen: picked
-    }].concat(bold)), catalog.pluginValueSheet(slotKey));
+    }].concat(bold)), catalog.editSheet('pluginValue', slotKey));
 }
 
 /**

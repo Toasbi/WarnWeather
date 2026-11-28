@@ -2561,7 +2561,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshMoon', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct', 'threshDew']
-      .concat(SLOT_KEYS.map(slotCatalog.phoneBatterySheet), ['threshCondition'], SLOT_KEYS.map(slotCatalog.pluginValueSheet)),
+      .concat(SLOT_KEYS.map((k) => slotCatalog.editSheet('phoneBattery', k)), ['threshCondition'], SLOT_KEYS.map((k) => slotCatalog.editSheet('pluginValue', k))),
     'sheet ids follow the thresh<Stem> convention the slot resolver derives, a slot\'s own after it');
   // The On demand sheets (the side lists' section + 10 item sheets) moved with the alerts
   // to the Alerts tab, and carry the On demand gate (aplite has no On demand).
@@ -2622,7 +2622,7 @@ test('each slot has its Phone battery sheet, and the phone battery resolves to i
   const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
   assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
   ['statusForecastLeft', 'statusTopRight', 'statusBar6Mid'].forEach((slotKey) => {
-    const id = slotCatalog.phoneBatterySheet(slotKey);
+    const id = slotCatalog.editSheet('phoneBattery', slotKey);
     const sheets = watch.sections.filter((s) => s.sheetId === id);
     assert.equal(sheets.length, 1, slotKey + ': exactly one Phone battery sheet of its own');
     const sheet = sheets[0];

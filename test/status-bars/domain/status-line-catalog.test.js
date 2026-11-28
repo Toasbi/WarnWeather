@@ -571,7 +571,7 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
       label: slotKey + 'PluginValueLabel', every: slotKey + 'PluginValueEvery' });
     Object.keys(own).forEach((name) => keys.push(own[name]));
     assert.deepEqual(catalog.pluginValueKeyList(slotKey), Object.values(own), 'the list of them');
-    sheets.push(catalog.pluginValueSheet(slotKey));
+    sheets.push(catalog.editSheet('pluginValue', slotKey));
     // The companions a bar made or deleted puts back with the slot (screens.js makeBar,
     // unmakeBar), never signed: a new source needs a read, not a weather fetch.
     assert.deepEqual(catalog.slotCompanions(slotKey).filter((c) => c.code === 'pluginValue'),
@@ -579,8 +579,33 @@ test('each slot keeps its own Plugin value settings and dialog, which a bar made
   });
   assert.equal(new Set(keys).size, 147, 'no slot shares a key with another');
   assert.equal(new Set(sheets).size, 21, 'nor a dialog');
-  assert.equal(catalog.pluginValueSheet('statusTopRight'), 'threshPluginValueTopRight');
-  assert.equal(catalog.pluginValueSheet('statusBar4Left'), 'threshPluginValueBar4Left');
+  assert.equal(catalog.editSheet('pluginValue', 'statusTopRight'), 'threshPluginValueTopRight');
+  assert.equal(catalog.editSheet('pluginValue', 'statusBar4Left'), 'threshPluginValueBar4Left');
+});
+
+// What a slot's Edit button opens for an item with a dialog of its own (blocks.js
+// statusSlotEditSheet): the Moon phase's one dialog, and a dialog per slot for the items whose
+// settings are each slot's. Every other item opens its kind's, or none.
+test('editSheet: the Moon phase\'s own dialog, one per slot for the phone battery and the Plugin value', () => {
+  assert.equal(catalog.editSheet('moon'), 'threshMoon');
+  assert.equal(catalog.editSheet('moon', 'statusTopLeft'), 'threshMoon', 'the same from every slot');
+  assert.equal(catalog.editSheet('phoneBattery', 'statusForecastLeft'), 'threshPhoneBatteryForecastLeft');
+  assert.equal(catalog.editSheet('pluginValue', 'statusBar6Right'), 'threshPluginValueBar6Right');
+  ['sun', 'twilight', 'dayLength', 'wind', 'battery', 'countdown', 'empty', 'nope', 'constructor', undefined]
+    .forEach((code) => assert.equal(catalog.editSheet(code, 'statusTopLeft'), null, String(code)));
+});
+
+// The sun and moon slots worked out on the phone take the Sunrise/sunset slot's kind, as the watch
+// maps every one of their icons to it (status_threshold.c status_icon_is_sky): a new one that
+// forgot it would bold apart from the others on the page alone.
+test('every sun and moon slot worked out on the phone, and only they, take the Sunrise/sunset slot\'s kind', () => {
+  const skySlots = require('../../../src/pkjs/status-bars/domain/sky-slots.js');
+  const env = Object.assign({}, ENV_EMERY_PHONE, { plugins: true });
+  const codes = catalog.slotOptions({ healthMode: 'all' }, env, { slotKey: 'statusTopMid', position: 'mid' })
+    .map((o) => o[1]).filter((code) => catalog.byCode(code));
+  assert.ok(codes.length > 20, 'the middle slot offers every item: ' + codes.length);
+  assert.deepEqual(codes.filter((code) => catalog.byCode(code).boldKind), skySlots.CODES);
+  skySlots.CODES.forEach((code) => assert.equal(catalog.byCode(code).boldKind, 'sun', code));
 });
 
 test('the phone battery is selectable in all 12 slots when the phone supports it', () => {
