@@ -49,7 +49,7 @@ var TIPS = [
         since: '3.6.0',
         title: 'Pick Open-Meteo\'s weather model',
         // The Weather dialog's Model row, under the Provider while it is Open-Meteo
-        // (page/weather/weather-sources-schema.js MODEL_ROW), and the precipitation amount a model
+        // (page/weather/weather-sources-schema.js), and the precipitation amount a model
         // goes without, which the dialog's Other sources list asks a source for
         // (weather-sources-page.js missingAmount). Every watch: the phone fetches.
         html: 'With Open-Meteo as the Provider, you can pick the weather model it uses, such as your ' +

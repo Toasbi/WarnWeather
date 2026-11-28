@@ -63,6 +63,8 @@ test('a value picked to another provider is its row, the one a fill would bring 
 
 test('a weather model without a precipitation amount: its row until a source is picked for it', () => {
   assert.deepEqual(rows(ALADIN), ['rainAmount none '], 'the amount comes from nowhere');
+  assert.deepEqual(page.sourceRows(Object.assign({}, NONE, ALADIN), BASALT),
+    [{ id: 'rainAmount', provider: '', kind: 'none', model: 'ČHMÚ ALADIN' }], 'with the model that goes without');
   assert.deepEqual(rows(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), ['rainAmount pick dwd']);
   assert.equal(page.missingAmount(Object.assign({ weatherSourceRainAmount: 'dwd' }, ALADIN)), null);
   assert.equal(page.missingAmount(ALADIN).name, 'ČHMÚ ALADIN');
@@ -73,6 +75,24 @@ test('a weather model without a precipitation amount: its row until a source is 
   assert.deepEqual(rows({ provider: 'dwd', openMeteoModel: 'chmi_aladin_seamless' }), [],
     'a model only while Open-Meteo is the Provider');
   assert.equal(page.missingAmount(null), null);
+});
+
+test('a precipitation amount picked to a provider without its key: the pick\'s row says so, the watch goes without', () => {
+  const keyless = Object.assign({ weatherSourceRainAmount: 'tomorrowio' }, ALADIN);
+  assert.deepEqual(rows(keyless), ['rainAmount pick tomorrowio'], 'one row, the pick\'s');
+  assert.equal(page.missingAmount(keyless).name, 'ČHMÚ ALADIN', 'the phone asks the Provider then (source-plan.js askable)');
+  assert.equal(page.missingAmount(Object.assign({ tomorrowioApiKey: 'k' }, keyless)), null, 'with its key');
+  assert.equal(page.amountPickTail(keyless), '', 'the Model row asks for no pick: there is one');
+  assert.equal(global.PConf.hintResolvers.get('weatherSourcesSummary')(keyless, BASALT),
+    'Open-Meteo (ČHMÚ ALADIN), precipitation amount from Tomorrow.io', 'named as every pick is');
+  assert.equal(page.amountBarsTail(Object.assign({ barSource: 'rain' }, keyless), BASALT,
+    { messageKey: 'barSource', link: '<L>' }),
+  'ČHMÚ ALADIN brings no precipitation amount, so there are no bars. Pick a source for it in <L>.', 'the bars stay empty');
+  const body = weatherDialog(keyless).modal.innerHTML;
+  assert.ok(body.indexOf('<span class="ui-n">Precipitation amount</span><span class="ui-d">Tomorrow.io · no API key</span>')
+    !== -1, 'its row says the key is missing');
+  assert.equal(body.indexOf('None with'), -1, 'and is the amount\'s only row');
+  assert.equal(body.indexOf('Pick a source for it below.'), -1);
 });
 
 const setupTab = schema.tabs.find((t) => t.id === 'setup');
@@ -129,6 +149,9 @@ test('a value\'s picker: where it comes from without a pick, then the others tha
       assert.equal(Boolean(o[2] && o[2].disabled), Boolean(providerReadings.keySetting(o[1])),
         reading + ': ' + o[1] + ' inert without its key');
     });
+    const dwd = options.find((o) => o[1] === 'dwd');
+    assert.deepEqual(dwd && dwd[2], providerReadings.serves('dwd', reading) ? { desc: 'Germany and nearby only' } : undefined,
+      reading + ': DWD names where it answers');
   });
   const wind = page.valueSources({ provider: 'dwd', tomorrowioApiKey: 'k' }, BASALT, { reading: 'wind' });
   assert.deepEqual(wind.find((o) => o[1] === 'tomorrowio'), ['Tomorrow.io', 'tomorrowio'], 'with its key stored');
@@ -146,6 +169,7 @@ test('the precipitation amount\'s picker with a weather model without one: none 
   assert.deepEqual(amount[0], ['None', '', { desc: 'ČHMÚ ALADIN brings none' }], 'no fill brings it');
   assert.deepEqual(amount.slice(1).map((o) => o[1]), ['dwd', 'metno', 'openweathermap', 'tomorrowio', 'wunderground',
     'yandex'], 'every other provider, Open-Meteo itself not');
+  assert.deepEqual(amount[1], ['DWD', 'dwd', { desc: 'Germany and nearby only' }], 'DWD says where it answers');
   assert.deepEqual(page.valueSources({ provider: 'openmeteo', openMeteoModel: 'ukmo_seamless' }, BASALT,
     { reading: 'rainAmount' })[0], ['Open-Meteo', '', { desc: 'Provider' }], 'the Met Office brings its own');
   assert.deepEqual(page.valueSources(ALADIN, BASALT, { reading: 'rainChance' })[0], ['Open-Meteo', '', { desc: 'Provider' }]);
@@ -220,7 +244,10 @@ test('Use another source\'s list: the values that still come from the Provider, 
 
 test('every provider and reading has its words', () => {
   const words = require('../../../src/pkjs/page/weather/weather-words.js');
-  providerFactory.PROVIDER_IDS.forEach((id) => { assert.ok(words.NAMES[id], id); });
+  providerFactory.PROVIDER_IDS.forEach((id) => {
+    assert.ok(words.NAMES[id], id);
+    assert.equal(Boolean(words.AREAS[id]), Boolean(providerReadings.PROVIDERS[id].area), id + ': its area, where it has one');
+  });
   providerReadings.READING_IDS.forEach((id) => { assert.ok(words.WORDS[id], id); });
 });
 
@@ -244,7 +271,9 @@ test('the Model row: Open-Meteo\'s only, the worldwide models, then the national
   assert.equal(model.defaultValue, 'ecmwf_ifs025');
   assert.deepEqual(model.showWhen, { key: 'provider', eq: 'openmeteo' });
   assert.equal(model.uiOnly, undefined, 'stored: the phone reads it (fetch-options.js openMeteoModel)');
-  const opts = model.options;
+  assert.deepEqual(model.optionsFrom, { resolver: 'weatherModelOptions' });
+  assert.equal(model.options, undefined, 'the page builds the list');
+  const opts = global.PConf.optionsResolvers.get('weatherModelOptions')(ALADIN, BASALT);
   assert.deepEqual(opts.filter((o) => o[2].groupHeader).map((o) => o[0]), ['Worldwide', 'National']);
   assert.deepEqual(opts.filter((o) => !o[2].groupHeader).map((o) => o[1]), openMeteoModels.IDS, 'every model, in the table\'s order');
   assert.deepEqual(opts[1], ['ECMWF IFS', 'ecmwf_ifs025', { desc: 'Worldwide, 25 km · default', groupChild: true,
@@ -282,6 +311,13 @@ test('the Model row in the dialog: under Open-Meteo, asking for a source of an a
   assert.equal(open({ provider: 'openmeteo' }).indexOf('Pick a source for it below.'), -1, 'ECMWF IFS brings its own');
   assert.equal(page.amountPickTail(ALADIN), 'Pick a source for it below.');
   assert.equal(page.amountPickTail({ provider: 'openmeteo', openMeteoModel: 'ukmo_seamless' }), '');
+});
+
+test('a stored model the table no longer holds shows as the default, and is stored as it once its row is drawn', () => {
+  const p = weatherDialog({ provider: 'openmeteo', openMeteoModel: 'retired_model' });
+  assert.ok(p.modal.innerHTML.indexOf('data-select="openMeteoModel" aria-label="Model: ECMWF IFS"') !== -1,
+    'as the phone reads it (open-meteo-models.js modelOf)');
+  assert.equal(p.S.openMeteoModel, 'ecmwf_ifs025');
 });
 
 // --- the Other sources list in the Weather dialog ---------------------------------------------

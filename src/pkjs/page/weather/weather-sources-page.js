@@ -11,7 +11,7 @@
 // (missingAmount: the Model row and the graphs' Bars row ask for one, weatherAmountPickTail and
 // weatherAmountBarsTail). Then Use another source, whose list (weatherFreeValues) hands a picked
 // value on to its picker. A new Provider takes back the values picked to it or left at the old
-// one (weatherProviderPicked).
+// one (weatherProviderPicked). The Model picker's list is the page's too (weatherModelOptions).
 //
 // Dual-context: a CommonJS module in the tests, a plain concatenated <script> in the settings
 // page (scripts/build-config-page.js APP_FILES, after open-meteo-models.js, provider-readings.js,
@@ -59,38 +59,55 @@
     }
 
     /**
-     * The weather model whose precipitation amount the watch goes without: Open-Meteo's, while it
-     * is the Provider, its model brings none (open-meteo-models.js bringsAmount) and no pick
-     * brings one instead.
+     * Whether a pick names a source of the precipitation amount, its key stored or not.
+     * @param {Array<{id: string}>} picks readingPicks.
+     * @returns {boolean}
+     */
+    function amountPicked(picks) {
+        return picks.some(function (o) { return o.id === 'rainAmount'; });
+    }
+
+    /**
+     * The weather model whose precipitation amount the watch goes without: the Provider sends none
+     * with the model the settings pick (provider-readings.js serves: some of Open-Meteo's do) and
+     * no pick the phone may ask brings one instead (source-plan.js askable: a pick without its key
+     * is not asked).
      * @param {?Object} S Settings.
+     * @param {Array<{id: string, provider: string}>} [picks] readingPicks(S), where it is read
+     *   already.
      * @returns {?Object} Its open-meteo-models.js MODELS row; null while the watch has an amount.
      */
-    function missingAmount(S) {
-        if (!S || S.provider !== openMeteoModels.PROVIDER) { return null; }
-        var model = openMeteoModels.modelRow(openMeteoModels.modelOf(S));
-        if (openMeteoModels.bringsAmount(model.id)) { return null; }
-        return readingPicks(S).some(function (o) { return o.id === 'rainAmount'; }) ? null : model;
+    function missingAmount(S, picks) {
+        if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return null; }
+        var input = sourcePlan.inputOf(S);
+        if (providerReadings.serves(input.provider, 'rainAmount', input.model)) { return null; }
+        return (picks || readingPicks(S)).some(function (o) {
+            return o.id === 'rainAmount' && sourcePlan.askable(o.provider, input);
+        }) ? null : openMeteoModels.modelRow(input.model);
     }
 
     /**
      * The Other sources list's rows, in the pickers' order: each value picked to another provider
      * (readingPicks; kind 'pick'), each value a screen draws that the Provider sends none of,
      * from Open-Meteo (source-plan.js fills; 'fill'), and the precipitation amount the weather
-     * model goes without ('none', provider '').
+     * model goes without ('none', provider '', the model's name) while no pick has its row: a
+     * pick without its key keeps its own, which says so.
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
-     * @returns {Array<{id: string, provider: string, kind: string}>} none for a provider the page
-     *   does not know
+     * @returns {Array<{id: string, provider: string, kind: string, model: (string|undefined)}>}
+     *   none for a provider the page does not know
      */
     function sourceRows(S, env) {
         if (!S || !Object.prototype.hasOwnProperty.call(NAMES, S.provider)) { return []; }
-        var byId = {};
-        readingPicks(S).forEach(function (o) { byId[o.id] = { id: o.id, provider: o.provider, kind: 'pick' }; });
+        var byId = {}, picks = readingPicks(S), missing = missingAmount(S, picks);
+        picks.forEach(function (o) { byId[o.id] = { id: o.id, provider: o.provider, kind: 'pick' }; });
         var drawn = drawnReadings.drawn(S, env || {});
         sourcePlan.fillsOf(sourcePlan.feedsOf(sourcePlan.inputOf(S), drawn), drawn).forEach(function (id) {
             if (!byId[id]) { byId[id] = { id: id, provider: sourcePlan.FILL_PROVIDER, kind: 'fill' }; }
         });
-        if (missingAmount(S)) { byId.rainAmount = { id: 'rainAmount', provider: '', kind: 'none' }; }
+        if (missing && !byId.rainAmount) {
+            byId.rainAmount = { id: 'rainAmount', provider: '', kind: 'none', model: missing.name };
+        }
         return READING_IDS.filter(function (id) { return byId[id]; }).map(function (id) { return byId[id]; });
     }
 
@@ -116,8 +133,9 @@
      * precipitation amount from Open-Meteo"), the values each provider brings named while that
      * stays short (two of them, or three from one provider), else counted ("DWD, 4 values from
      * Met.no and Open-Meteo"), and last, in the accent, a precipitation amount the model goes
-     * without (missingAmount). A key the Provider is missing or that is refused says that
-     * instead, as the tab's dot does (key-status.js keyAttention).
+     * without while nothing is picked for it (missingAmount; a pick without its key is named as
+     * the others are). A key the Provider is missing or that is refused says that instead, as the
+     * tab's dot does (key-status.js keyAttention).
      * @param {Object} S Settings.
      * @param {Object} env Platform env.
      * @returns {string} HTML; '' for a provider the page does not know
@@ -142,7 +160,8 @@
         var model = openMeteoModels.modelOf(S);
         var head = NAMES[S.provider] + (model !== openMeteoModels.DEFAULT ? ' (' + openMeteoModels.modelRow(model).name + ')' : '');
         return html.esc(head + (list.length ? ', ' + html.andList(parts) : ''))
-            + (missingAmount(S) ? ', <span class="txt-acc">no ' + html.esc(WORDS.rainAmount) + '</span>' : '');
+            + (!amountPicked(list) && missingAmount(S, list)
+                ? ', <span class="txt-acc">no ' + html.esc(WORDS.rainAmount) + '</span>' : '');
     }
 
     /**
@@ -151,15 +170,16 @@
      * the Provider, or from Open-Meteo where the Provider sends none (source-plan.js fills), so
      * Open-Meteo is not offered twice; a value no fill brings (one every forecast holds, which
      * Open-Meteo's weather model leaves out) from nowhere. A keyed provider stays listed but
-     * cannot be picked until its key is stored, which its key row under the Provider does.
+     * cannot be picked until its key is stored, which its key row under the Provider does; one
+     * that covers only an area names it (DWD's "Germany and nearby only").
      * @param {Object} S Settings.
      * @param {Object} env Platform env (unused).
      * @param {{reading: string}} args The picker's value.
      * @returns {Array<Array>} [label, value, meta?] options.
      */
     function valueSources(S, env, args) {
-        var reading = args && args.reading, input = { provider: S.provider, keyed: sourcePlan.keyedOf(S) };
-        var main = NAMES[input.provider] || '', model = openMeteoModels.modelOf(S);
+        var reading = args && args.reading, input = sourcePlan.inputOf(S), model = input.model;
+        var main = NAMES[input.provider] || '';
         var lacks = !providerReadings.serves(input.provider, reading, model);
         var filled = providerReadings.DRAWN_ONLY.indexOf(reading) !== -1;
         var out = [!lacks ? [main, '', { desc: 'Provider' }]
@@ -168,7 +188,9 @@
         Object.keys(NAMES).forEach(function (id) {
             if (id === input.provider || (lacks && id === sourcePlan.FILL_PROVIDER)
                 || !providerReadings.serves(id, reading)) { return; }
-            out.push(sourcePlan.askable(id, input) ? [NAMES[id], id] : [NAMES[id], id, { desc: KEY_FIRST, disabled: true }]);
+            var area = words.AREAS[id];
+            out.push(!sourcePlan.askable(id, input) ? [NAMES[id], id, { desc: KEY_FIRST, disabled: true }]
+                : area ? [NAMES[id], id, { desc: area + ' only' }] : [NAMES[id], id]);
         });
         return out;
     }
@@ -239,7 +261,7 @@
                 return kit.listRow({ name: label, line: NAMES[o.provider] + ' · ' + main + ' sends none', at: at });
             }
             if (o.kind === 'none') {
-                return kit.listRow({ name: label, line: 'None with ' + missingAmount(S).name + ' · pick a source', at: at,
+                return kit.listRow({ name: label, line: 'None with ' + o.model + ' · pick a source', at: at,
                     accent: true });
             }
             return kit.listRow({ name: label,
@@ -253,12 +275,43 @@
 
     /**
      * The Model row's hint tail (hintTailFrom): while the weather model goes without a
-     * precipitation amount, the ask for a source of it, which the list below it offers.
+     * precipitation amount and nothing is picked for it, the ask for a source of it, which the
+     * list below it offers. A pick without its key says so in its row.
      * @param {Object} S Settings.
-     * @returns {string} HTML; '' while the watch has an amount
+     * @returns {string} HTML; '' while the watch has an amount or a pick for one
      */
     function amountPickTail(S) {
-        return missingAmount(S) ? 'Pick a source for it below.' : '';
+        var picks = readingPicks(S);
+        return !amountPicked(picks) && missingAmount(S, picks) ? 'Pick a source for it below.' : '';
+    }
+
+    /**
+     * A weather model's line under its name in the Model picker: its area and grid, and what it
+     * lacks ("Austria, 1 km · no precipitation amount").
+     * @param {Object} model An open-meteo-models.js MODELS row.
+     * @returns {string}
+     */
+    function modelDesc(model) {
+        return model.area + ', ' + model.grid + (model.id === openMeteoModels.DEFAULT ? ' · default' : '')
+            + (openMeteoModels.bringsAmount(model.id) ? '' : ' · no ' + WORDS.rainAmount);
+    }
+
+    /**
+     * The Model picker's options (open-meteo-models.js MODELS): the worldwide models, then the
+     * national ones, each group under its header. A list the page builds, so a stored model the
+     * table no longer holds shows, and is stored, as the default once its row is drawn (engine
+     * resolveRowItem), as the phone already reads it (modelOf).
+     * @returns {Array<Array>} [label, value, meta] options.
+     */
+    function modelOptions() {
+        return [['Worldwide', true], ['National', false]].reduce(function (out, group) {
+            var models = openMeteoModels.MODELS.filter(function (model) { return model.worldwide === group[1]; });
+            return out.concat([[group[0], '__hdr_' + group[0].toLowerCase(), { disabled: true, groupHeader: true }]],
+                models.map(function (model, i) {
+                    return [model.name, model.id, { desc: modelDesc(model), groupChild: true,
+                        groupEnd: i === models.length - 1 }];
+                }));
+        }, []);
     }
 
     /**
@@ -310,6 +363,7 @@
         PConf.hintResolvers.register('weatherCallsLine', callsLine);
         PConf.optionsResolvers.register('weatherValueSources', valueSources);
         PConf.optionsResolvers.register('weatherFreeValues', freeValues);
+        PConf.optionsResolvers.register('weatherModelOptions', modelOptions);
         PConf.onChange.register('weatherProviderPicked', providerPicked);
         PConf.blocks.register('weatherOtherSources', otherSourcesBlock);
         PConf.actions[REMOVE] = removePick;
@@ -318,7 +372,7 @@
     var api = { USE_ANOTHER: USE_ANOTHER, summary: summary, readingPicks: readingPicks, missingAmount: missingAmount,
         sourceRows: sourceRows, providerPicked: providerPicked, valueSources: valueSources, freeValues: freeValues,
         otherSourcesBlock: otherSourcesBlock, amountPickTail: amountPickTail, amountBarsTail: amountBarsTail,
-        callsLine: callsLine };
+        modelOptions: modelOptions, callsLine: callsLine };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherSourcesPage = api; }
 })();

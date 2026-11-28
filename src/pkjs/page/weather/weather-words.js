@@ -1,8 +1,8 @@
 // src/pkjs/page/weather/weather-words.js — ES5. The words the settings page names the weather
-// with: each reading as a sentence names it (provider-readings.js READINGS), and each weather
+// with: each reading as a sentence names it (provider-readings.js READINGS), each weather
 // service as a sentence names it, in the Provider picker's order (weather-sources-schema.js
 // PROVIDER_OPTIONS: its names, DWD's short one; test/page/weather/weather-words.test.js keeps the
-// two in step). The schema's rows are labelled by them in PKJS (label), and the page's notes and
+// two in step), and the area of one that covers only an area. The schema's rows are labelled by them in PKJS (label), and the page's notes and
 // lines say them (weather-sources-page.js).
 //
 // Dual-context: a CommonJS module in PKJS and the tests, a plain concatenated <script> in the
@@ -17,6 +17,9 @@
         windDir: 'wind direction', uv: 'UV index', cloud: 'cloud cover', pressure: 'air pressure' };
     var NAMES = { dwd: 'DWD', metno: 'Met.no', openmeteo: 'Open-Meteo', openweathermap: 'OpenWeatherMap',
         tomorrowio: 'Tomorrow.io', wunderground: 'Weather Underground', yandex: 'Yandex Weather' };
+    // Where a provider that covers one area answers (provider-readings.js area), as its option in
+    // a value's picker names it.
+    var AREAS = { dwd: 'Germany and nearby' };
 
     /**
      * A reading's name as a row or a picker's title says it ("Feels-like").
@@ -25,7 +28,7 @@
      */
     function label(id) { return html.capitalize(WORDS[id]); }
 
-    var api = { WORDS: WORDS, NAMES: NAMES, label: label };
+    var api = { WORDS: WORDS, NAMES: NAMES, AREAS: AREAS, label: label };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
     if (typeof window !== 'undefined') { window.WeatherWords = api; }
 })();

@@ -9,8 +9,10 @@
 var providerReadings = require('../../weather/domain/provider-readings.js');
 var sourcePlan = require('../../weather/domain/source-plan.js');
 var openMeteoModels = require('../../weather/domain/open-meteo-models.js');
-// A picker's title: its reading's name (weather-words.js label).
+// A picker's title: its reading's name (weather-words.js label); the readings' names.
 var words = require('./weather-words.js');
+var html = require('../../config-ui/lib/html.js');
+var WORDS = words.WORDS;
 
 // The weather providers as the Provider picker lists them, alphabetical by name. The 3rd tuple
 // slot's desc is the short "what it's best at" tag shown under each name in the list; DWD
@@ -42,36 +44,13 @@ var PROVIDER_WHY = {
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
 
-/**
- * A weather model's line under its name in the Model picker: its area and grid, and what it
- * lacks ("Austria, 1 km · no precipitation amount").
- * @param {Object} model An open-meteo-models.js MODELS row.
- * @returns {string}
- */
-function modelDesc(model) {
-    return model.area + ', ' + model.grid + (model.id === openMeteoModels.DEFAULT ? ' · default' : '')
-        + (openMeteoModels.bringsAmount(model.id) ? '' : ' · no precipitation amount');
-}
-
-// Open-Meteo's weather models as the Model picker lists them (open-meteo-models.js MODELS): the
-// worldwide ones, then the national ones, each group under its header.
-var MODEL_OPTIONS = [['Worldwide', true], ['National', false]].reduce(function (out, group) {
-    var models = openMeteoModels.MODELS.filter(function (model) { return model.worldwide === group[1]; });
-    return out.concat([[group[0], '__hdr_' + group[0].toLowerCase(), {disabled: true, groupHeader: true}]],
-        models.map(function (model, i) {
-            return [model.name, model.id, {desc: modelDesc(model), groupChild: true, groupEnd: i === models.length - 1}];
-        }));
-}, []);
-
 // Where a model's precipitation chance comes from (open-meteo-models.js chance), said under the
 // Model row while it is picked: only a chance of its own matches its amounts.
+var NO_AMOUNT = ' doesn\'t match its amounts, so it brings no ' + WORDS.rainAmount + '.';
 var CHANCE_WHY = {
-    borrowed: 'Its precipitation chance comes from ECMWF and doesn\'t match its amounts, so it brings no '
-        + 'precipitation amount.',
-    coarser: 'Its precipitation chance comes from a coarser model and doesn\'t match its amounts, so it brings no '
-        + 'precipitation amount.',
-    none: 'It has no precipitation chance of its own, so the watch takes ECMWF\'s. That doesn\'t match its amounts, '
-        + 'so it brings no precipitation amount.'
+    borrowed: 'Its ' + WORDS.rainChance + ' comes from ECMWF and' + NO_AMOUNT,
+    coarser: 'Its ' + WORDS.rainChance + ' comes from a coarser model and' + NO_AMOUNT,
+    none: 'It has no ' + WORDS.rainChance + ' of its own, so the watch takes ECMWF\'s. That' + NO_AMOUNT
 };
 
 // The Model row's hint for each national model, the picked one's only (hintByValue): where it
@@ -82,16 +61,17 @@ var MODEL_WHY = {};
 openMeteoModels.MODELS.forEach(function (model) {
     if (model.worldwide) { return; }
     var area = model.covers
-        ? model.covers.charAt(0).toUpperCase() + model.covers.slice(1) + ' only; elsewhere the watch uses '
+        ? html.capitalize(model.covers) + ' only; elsewhere the watch uses '
             + openMeteoModels.modelRow(openMeteoModels.DEFAULT).name + '.'
         : 'Beyond its area it blends into a wider model.';
     MODEL_WHY[model.id] = area + (CHANCE_WHY[model.chance] ? ' ' + CHANCE_WHY[model.chance] : '');
 });
 
 // Open-Meteo's Model, under the Provider while it is Open-Meteo (open-meteo-models.js; the phone
-// reads it through fetch-options.js openMeteoModel), joined to it without a divider. A model that
-// brings no precipitation amount asks for a source of it while none is picked (the page's
-// weatherAmountPickTail).
+// reads it through fetch-options.js openMeteoModel), joined to it without a divider. Its list is
+// the page's (weatherModelOptions), so a stored model the table no longer holds shows as the
+// default. A model that brings no precipitation amount asks for a source of it while none is
+// picked (the page's weatherAmountPickTail).
 var MODEL_ROW = {
     type: 'select',
     messageKey: 'openMeteoModel',
@@ -101,7 +81,7 @@ var MODEL_ROW = {
     showWhen: {key: 'provider', eq: openMeteoModels.PROVIDER},
     hintByValue: MODEL_WHY,
     hintTailFrom: {resolver: 'weatherAmountPickTail'},
-    options: MODEL_OPTIONS
+    optionsFrom: {resolver: 'weatherModelOptions'}
 };
 
 // The Data sources row that opens the Weather dialog. Its second line says where the weather
@@ -207,5 +187,4 @@ function dialogSections(keyRow) {
 }
 
 module.exports = { TOMORROWIO_CREDIT: TOMORROWIO_CREDIT, PROVIDER_OPTIONS: PROVIDER_OPTIONS, PROVIDER_WHY: PROVIDER_WHY,
-    MODEL_OPTIONS: MODEL_OPTIONS, MODEL_WHY: MODEL_WHY, MODEL_ROW: MODEL_ROW, WEATHER_ROW: WEATHER_ROW,
-    SOURCE_PICKERS: SOURCE_PICKERS, CALLS_LINE: CALLS_LINE, dialogSections: dialogSections };
+    WEATHER_ROW: WEATHER_ROW, SOURCE_PICKERS: SOURCE_PICKERS, CALLS_LINE: CALLS_LINE, dialogSections: dialogSections };

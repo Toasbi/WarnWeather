@@ -132,12 +132,15 @@ test('STATE_KEYS lists every settings key the budget math reads', () => {
   // The onSubmit guard (onbuild.js) rebuilds its state object from exactly these keys;
   // a key read here but missing there would silently read as undefined at save time.
   const read = new Set();
-  const spy = new Proxy(S({ radarMode: 'graph', sleepNightEnabled: true }), {
-    get: (target, k) => { if (typeof k === 'string') { read.add(k); } return target[k]; }
+  // With tomorrow.io as the Provider, and with Open-Meteo, whose weather model the plan reads.
+  [{}, { provider: 'openmeteo', weatherSourceFeels: 'tomorrowio', tomorrowioApiKey: 'k' }].forEach((over) => {
+    const spy = new Proxy(S(Object.assign({ radarMode: 'graph', sleepNightEnabled: true }, over)), {
+      get: (target, k) => { if (typeof k === 'string') { read.add(k); } return target[k]; }
+    });
+    budget.fittingOptions(spy);
+    budget.fits(spy, 5);
+    budget.minSleepHoursFor(spy, 5);
   });
-  budget.fittingOptions(spy);
-  budget.fits(spy, 5);
-  budget.minSleepHoursFor(spy, 5);
   assert.deepEqual([...read].sort(), budget.STATE_KEYS.slice().sort());
 });
 

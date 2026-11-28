@@ -48,7 +48,7 @@
 
     // The last settings' tomorrow.io requests: the page asks for them many times a render
     // (fits() for each interval step, every read-out), and they follow only the keys the plan
-    // reads (sourcePlan.SETTINGS_KEYS and the provider), which the key below holds.
+    // reads (sourcePlan.SETTINGS_KEYS, the Provider and its model), which the key below holds.
     var lastWeatherCalls = { key: null, calls: 0 };
 
     /**
@@ -161,9 +161,10 @@
     // accessor (the onSubmit hook) builds its state object from exactly these;
     // test/page/weather/budgets/tomorrowio-budget.test.js pins the list against what the math reads.
     // The reading picks and the keys a pick needs (source-plan.js SETTINGS_KEYS) decide
-    // whether an update asks tomorrow.io (weatherCalls).
-    var STATE_KEYS = ['provider', 'radarProvider', 'radarMode', 'sleepNightEnabled', 'sleepStartHour',
-        'sleepEndHour'].concat(sourcePlan.SETTINGS_KEYS);
+    // whether an update asks tomorrow.io (weatherCalls), beside the Provider and, while it is
+    // Open-Meteo, its weather model (source-plan.js inputOf).
+    var STATE_KEYS = ['provider', 'openMeteoModel', 'radarProvider', 'radarMode', 'sleepNightEnabled',
+        'sleepStartHour', 'sleepEndHour'].concat(sourcePlan.SETTINGS_KEYS);
 
     var api = {
         LIMIT_DAY: LIMIT_DAY,
