@@ -277,6 +277,8 @@ test('the pollen tip names the page\'s own words for the slot, on every watch', 
   const label = catalog.byCode('pollen').label;
   assert.ok(tip.html.indexOf('The ' + label + ' slot now works with every weather provider') === 0, tip.html);
   assert.ok(tip.html.indexOf('Set a slot to ' + label + ' ') !== -1, tip.html);
+  // It shows under every Provider: the slot's dialog names the pollen source in use and its area.
+  assert.doesNotMatch(tip.html, /DWD|CAMS|Open-Meteo|Europe|German/, 'no source or area');
   assert.deepEqual(tip.open, { tab: 'watch' }, 'Show me opens the Status bars tab');
   assert.equal(tip.when, undefined, 'every watch: the phone fetches');
   assert.equal(tip.since, '3.6.0');

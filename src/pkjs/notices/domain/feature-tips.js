@@ -63,9 +63,10 @@ var TIPS = [
         title: 'Pollen with every weather provider',
         // The Pollen slot (status-line-catalog.js 'pollen'), offered with every Provider now: its
         // level comes from the pollen source the Provider reads (weather/domain/pollen-days.js
-        // sourceOf), the CAMS forecast for Europe with all but the DWD. Every watch: the phone
-        // fetches it. Show me opens the Status bars tab.
-        html: 'The Pollen slot now works with every weather provider, across Europe. Set a slot to Pollen ' +
+        // sourceOf), the CAMS forecast for Europe with all but the DWD. The tip shows under every
+        // Provider, so it names no source or area: the slot's dialog names the one in use. Every
+        // watch: the phone fetches it. Show me opens the Status bars tab.
+        html: 'The Pollen slot now works with every weather provider. Set a slot to Pollen ' +
             'to see today\'s level.',
         open: { tab: 'watch' }
     },
