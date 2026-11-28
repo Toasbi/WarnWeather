@@ -44,6 +44,17 @@ test('every tip has what the card prints, and a place the page can open', () => 
   });
 });
 
+test('a newer release\'s tips are above an older one\'s', () => {
+  const release = (tip) => tip.since.split('.').map(Number);
+  featureTips.TIPS.slice(1).forEach((tip, i) => {
+    const above = release(featureTips.TIPS[i]);
+    const below = release(tip);
+    const newer = below.findIndex((part, k) => part !== above[k]);
+    assert.ok(newer === -1 || below[newer] < above[newer], tip.id + ' (' + tip.since + ') is below a tip of '
+      + featureTips.TIPS[i].since);
+  });
+});
+
 test('an install from before the tips is shown them; one that has seen them is shown none', () => {
   assert.deepEqual(ids(featureTips.pending([], BASALT)), featureTips.allIds().slice(0, featureTips.MAX_SHOWN));
   assert.deepEqual(ids(featureTips.pending(null, BASALT)), ids(featureTips.pending([], BASALT)), 'no list reads as none seen');
@@ -180,8 +191,8 @@ test('the icon tip names the page\'s own words: the Edit button, the Looks with 
   assert.ok(fifteen, 'Updates offers 15 minutes');
   assert.ok(tip.html.indexOf('Under ' + every.label + ', you can now pick ' + fifteen[0] + '.') !== -1, tip.html);
   assert.equal(tip.since, '3.5.0');
-  assert.deepEqual(featureTips.allIds().slice(0, 3), ['pluginValues', 'pluginValueIcon', 'complications'],
-    'the newest release\'s, on top');
+  assert.deepEqual(featureTips.TIPS.filter((x) => x.since === '3.5.0').map((x) => x.id),
+    ['pluginValues', 'pluginValueIcon', 'complications'], 'its release\'s, in the card\'s order');
 });
 
 test('the several values tip names the page\'s own words: the item, and the Edit button that opens a slot\'s own dialog', () => {
@@ -246,4 +257,20 @@ test('the Weather from tip names the page\'s own section and row, on every watch
   const others = featureTips.allIds().filter((id) => id !== 'weatherFrom');
   [{ platform: 'aplite', plugins: false }, { platform: 'emery', plugins: true }, null].forEach((env) =>
     assert.ok(ids(featureTips.pending(others, env)).indexOf('weatherFrom') !== -1, JSON.stringify(env)));
+});
+
+test('the weather model tip names the page\'s own section and rows, on every watch', () => {
+  const tip = featureTips.TIPS.find((t) => t.id === 'openMeteoModel');
+  const setup = schema.tabs.find((tab) => tab.id === 'setup');
+  const section = setup.sections.find((s) => s.id === 'dataSources');
+  const weatherRow = section.items[0];
+  const dialog = setup.sections.find((s) => s.sheetId === 'weatherSources');
+  const model = dialog.items.find((i) => i.messageKey === 'openMeteoModel');
+  const other = dialog.items.find((i) => i.type === 'subheader');
+  assert.equal(tip.open.sheet, weatherRow.sheetId, 'Show me opens the Weather dialog');
+  assert.ok(tip.html.indexOf('On the ' + setup.label + ' tab, open ' + weatherRow.label + ' under ' + section.title)
+    !== -1, tip.html);
+  assert.ok(tip.html.indexOf('pick one under ' + model.label + '.') !== -1, 'the Model row');
+  assert.ok(tip.html.indexOf('under ' + other.text + '.') !== -1, 'the Other sources list');
+  assert.equal(tip.when, undefined, 'every watch: the phone fetches');
 });

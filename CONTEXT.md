@@ -469,13 +469,27 @@ _Avoid_: normalized provider fields, provider instance shape.
 **Reading**:
 One of the fourteen parts a forecast is made of, each the mapped key one provider fills: the
 three of the moment (the temperature, the feels-like and the weather condition now), then the
-hourly temperature, feels-like, dew point, rain chance, rain amount, wind speed, wind gusts,
-wind direction, UV, cloud cover and air pressure. Each provider computes its own feels-like
-from its own hours. `src/pkjs/weather/domain/provider-readings.js` lists them, and per provider
-which readings it sends (Yandex sends no dew point, wind direction, cloud cover or air
-pressure; DWD no UV), the setting that holds its key, the area it covers and the requests one
-fetch makes. Air quality, pollen and the rain radar are no readings: each has its own source.
+hourly temperature, feels-like, dew point, precipitation chance, precipitation amount, wind
+speed, wind gusts, wind direction, UV, cloud cover and air pressure. Each provider computes its
+own feels-like from its own hours. `src/pkjs/weather/domain/provider-readings.js` lists them,
+and per provider which readings it sends (Yandex sends no dew point, wind direction, cloud
+cover or air pressure; DWD no UV; Open-Meteo no precipitation amount with some weather models),
+the setting that holds its key, the area it covers and the requests one fetch makes. Air
+quality, pollen and the rain radar are no readings: each has its own source.
 _Avoid_: metric (a metric is what a graph line or slot draws), field.
+
+**Weather model**:
+The forecast model the Open-Meteo Provider asks (`openMeteoModel`, the Weather dialog's Model
+row under the Provider; `src/pkjs/weather/domain/open-meteo-models.js`): ECMWF IFS at 25 km by
+default, two other worldwide models, or a national one. It applies only while Open-Meteo is the
+Provider: for a reading pick and for the fills, Open-Meteo answers with the default. A model's
+precipitation chance is its own, ECMWF's or a coarser model's, and only a model whose chance is
+its own brings a precipitation amount, since an amount beside another model's chance does not
+match it. A model with no chance at all (Météo-France AROME, JMA MSM) takes ECMWF's, asked
+first. A national model blends into a wider one beyond its area, but ČHMÚ ALADIN and MeteoSwiss
+ICON answer only inside theirs: elsewhere the fetch takes the default's forecast and remembers
+the place.
+_Avoid_: best match, seamless (Open-Meteo's names for its blends; the ids keep `_seamless`).
 
 **Source plan**:
 What one fetch asks for, in order (`src/pkjs/weather/domain/source-plan.js`): its steps. The
@@ -483,7 +497,8 @@ Provider (the Weather dialog's first picker) is the fetch's anchor: its instance
 and the rest of the fetch (the sun events, air quality, pollen, the day records, the payload)
 reads it. Its own forecast is the first step, and a fetch without it fails; it serves the
 readings it sends, and a reading it lacks is a fill: it comes from Open-Meteo while the watch
-draws it (a drawn reading). DWD's UV comes by Open-Meteo's UV-only request, Yandex's dew point,
+draws it (a drawn reading). The precipitation amount a weather model goes without is never a
+fill: only a reading pick brings it. DWD's UV comes by Open-Meteo's UV-only request, Yandex's dew point,
 wind direction, cloud cover and air pressure by one request for all four.
 `src/pkjs/weather/application/fetch-sources.js` runs the steps through the source ports. The
 plan also counts the calls a day it comes to while no provider fails (`callsPerDay`: each
@@ -496,8 +511,10 @@ _Avoid_: provider chain, fallback provider.
 A reading's provider of its own: its row in the Weather dialog's Other sources list
 (Setup › Data sources › Weather; `weatherSource<Reading>`, '' for the Provider's), where that
 provider sends the reading, has its key and covers the place (`source-plan.js`
-feedsOf). The list holds only the readings with a pick; Use another source adds one. A new
-Provider takes back the values picked to it or left at the old one.
+feedsOf). The list holds the readings with a pick, each fill the watch draws (with its source
+and no ×) and, until it has a pick, the precipitation amount a weather model goes without; Use
+another source adds a pick. A new Provider takes back the values picked to it or left at the
+old one.
 The Provider always serves the forecast and stays the fetch's anchor; each other provider a pick names is asked
 once for its whole forecast, and the readings picked to it are laid on by time (a part:
 `partSteps`, `forecast-model.js` adoptReadings). A part that fails, or whose hours do not line
@@ -510,7 +527,8 @@ A reading only some screens draw that the watch draws now
 (`src/pkjs/weather/domain/drawn-readings.js`): UV, the dew point, the cloud cover and the air
 pressure on a forecast line the watch draws, in a status slot or as a placed alert, and the
 wind direction as the wind and gust slots' arrow. The fetch asks for UV, and fills a reading
-the provider lacks, only while it is drawn; the settings page names the fills by the same rule.
+the provider lacks, only while it is drawn; the Other sources list shows the fills by the same
+rule.
 _Avoid_: wanted reading, used metric.
 
 **Source ports**:

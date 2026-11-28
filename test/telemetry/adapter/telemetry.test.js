@@ -118,6 +118,18 @@ test('snapshot includes the reading picks', () => {
   assert.strictEqual(buildSettingsSnapshot({}).weatherSourceMode, undefined, 'no Weather from mode any more');
 });
 
+// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
+test('snapshot includes Open-Meteo\'s weather model while it is the Provider', () => {
+  const model = (S) => buildSettingsSnapshot(S).openMeteoModel;
+  assert.strictEqual(model({ provider: 'openmeteo', openMeteoModel: 'chmi_aladin_seamless' }), 'chmi_aladin_seamless');
+  assert.strictEqual(model({ provider: 'openmeteo' }), 'ecmwf_ifs025', 'the default');
+  assert.strictEqual(model({ provider: 'openmeteo', openMeteoModel: 'retired_model' }), 'ecmwf_ifs025',
+    'the model the fetch answers with');
+  assert.strictEqual(model({ provider: 'dwd', openMeteoModel: 'chmi_aladin_seamless' }), undefined,
+    'none with another Provider');
+  assert.ok(Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({}), 'openMeteoModel'), 'the key is always there');
+});
+
 test('snapshot includes aqiSource', () => {
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'waqi' }).aqiSource, 'waqi');
   assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'auto' }).aqiSource, 'auto');
@@ -541,6 +553,8 @@ const HEAVIEST_SETTINGS = {
   weatherSourceRainAmount: 'openweathermap', weatherSourceWind: 'openweathermap', weatherSourceGust: 'openweathermap',
   weatherSourceWindDir: 'openweathermap', weatherSourceUv: 'openweathermap', weatherSourceCloud: 'openweathermap',
   weatherSourcePressure: 'openweathermap',
+  // Open-Meteo as the Provider, on the longest weather model id.
+  provider: 'openmeteo', openMeteoModel: 'meteoswiss_icon_seamless',
   gustSlotDirection: true,
   threshPhoneBatteryBoldMode: 'always', threshConditionBoldMode: 'always', dayNightShading: true,
   healthMode: 'status', fetchIntervalMin: '120',
@@ -1094,7 +1108,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // 2896 of 4096, headroom 1200. Later fields made it 3394. The Plugin value slots' count and
 // icons (seven slots, one with each icon, in place of one icon) made it 3438 of 4096,
 // headroom 658. Their Looks made it 3469 of 4096, headroom 627. Their Label's field and the
-// Tide icon made it 3497 of 4096, headroom 599.
+// Tide icon made it 3497 of 4096, headroom 599. Open-Meteo's weather model made it 3541 of 4096,
+// headroom 555.
 test('the heaviest realistic telemetry batch header stays under MAX_SETTINGS_BYTES', () => {
   const cap = Number(/const MAX_SETTINGS_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

@@ -152,9 +152,10 @@ test('a phone or watch that cannot use a feature is not handed its tip, and keep
   // text needs none.
   const h = boot(t, Object.assign({}, EXISTING));
   h.listeners.showConfiguration({});
-  assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['weatherFrom', 'batteryIconText', 'blackTheme']);
+  assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id),
+    ['openMeteoModel', 'weatherFrom', 'batteryIconText']);
   save(h, { featureTipsAck: true });
-  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['weatherFrom', 'batteryIconText', 'blackTheme'],
+  assert.deepEqual(JSON.parse(h.store[h.KEYS.FEATURE_TIPS_SEEN_KEY]), ['openMeteoModel', 'weatherFrom', 'batteryIconText'],
     'only the tips it showed');
 });
 
@@ -162,6 +163,6 @@ test('aplite is handed no tip for the watch battery or a plugin\'s value, plugin
   [PLUGINS, undefined].forEach((extras) => {
     const h = boot(t, Object.assign({}, EXISTING), extras, 'aplite');
     h.listeners.showConfiguration({});
-    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['weatherFrom', 'blackTheme']);
+    assert.deepEqual(userDataOf(h.opened[0]).featureTips.map((tip) => tip.id), ['openMeteoModel', 'weatherFrom', 'blackTheme']);
   });
 });

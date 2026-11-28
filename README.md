@@ -32,6 +32,7 @@ Features marked * depend on your watch model.
 - 12 to 66 hours ahead* and up to six graphs, one per screen*
 - Day/night shading
 - Weather from Open-Meteo, Met.no, Bright Sky (DWD), OpenWeatherMap, Tomorrow.io, Weather Underground or Yandex Weather
+- Open-Meteo with ECMWF's global model or another you pick, such as your country's own. For a model without a precipitation amount, you pick where the amount comes from
 - One provider for everything, or a provider of its own for any reading, with the calls a day shown in the settings
 - Readings a provider lacks, like DWD's UV index, come from Open-Meteo
 

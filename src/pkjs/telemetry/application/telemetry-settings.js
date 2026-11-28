@@ -49,6 +49,8 @@ var graphStyles = require('../../forecast-graphs/domain/graph-styles.js');
 var weatherTabModel = require('../../weather/domain/weather-tab-model.js');
 // The reading picks (Setup › Data sources): their setting keys and stored values.
 var sourcePlan = require('../../weather/domain/source-plan.js');
+// Open-Meteo's weather model, while it is the Provider (openMeteoModel below).
+var openMeteoModels = require('../../weather/domain/open-meteo-models.js');
 
 // The Show unit toggles worth a field (status-line-catalog.js UNIT_TOGGLES has three more:
 // pressure, rain countdown and dew point read the same on every 2.6 watch).
@@ -349,6 +351,10 @@ function buildSettingsSnapshot(settings, watchInfo, nowMs) {
         // The reading picks, the readings set to a provider of their own, in the table's
         // order ('uv:openmeteo,wind:dwd'); '' with none.
         weatherSources: weatherSourcesOf(safe),
+        // Open-Meteo's weather model (Setup › Data sources › Weather › Model), the one the fetch
+        // answers with ('ecmwf_ifs025' for a stored id the table no longer holds); none while
+        // another provider is the Provider, which every event names.
+        openMeteoModel: safe.provider === openMeteoModels.PROVIDER ? openMeteoModels.modelOf(safe) : undefined,
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
         gustSlotDirection: Boolean(safe.gustSlotDirection),

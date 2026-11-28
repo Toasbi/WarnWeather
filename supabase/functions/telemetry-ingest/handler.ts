@@ -78,6 +78,9 @@ const settingsSchema = z
     // The reading picks (Setup › Data sources), 'reading:provider' pairs
     // ('uv:openmeteo,wind:dwd'), lockstep with buildSettingsSnapshot.
     weatherSources: z.string().optional(),
+    // Open-Meteo's weather model while it is the Provider (an open-meteo-models.js id),
+    // lockstep with buildSettingsSnapshot; absent with any other Provider.
+    openMeteoModel: z.string().optional(),
     windUnits: z.string().optional(),
     distanceUnits: z.string().optional(),
     gustSlotDirection: z.boolean().optional(),

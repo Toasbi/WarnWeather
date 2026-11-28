@@ -12,6 +12,7 @@ FORECAST
 - 12 to 66 hours ahead* and up to six graphs*
 - Day/night shading
 - Weather from one provider, or a provider of its own for any reading
+- Open-Meteo with the weather model you pick, such as your country's own
 
 ALERTS*
 Icons that appear only when something needs your attention:
